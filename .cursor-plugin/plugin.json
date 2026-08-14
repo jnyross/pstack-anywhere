@@ -1,0 +1,28 @@
+{
+	"name": "pstack-anywhere",
+	"displayName": "pstack-anywhere",
+	"version": "0.14.1",
+	"description": "Portable fork of Cursor pstack skills only. Rigorous agent workflows you can use outside the full plugins repo.",
+	"author": {
+		"name": "Lauren Tan"
+	},
+	"homepage": "https://github.com/jnyross/pstack-anywhere",
+	"repository": "https://github.com/jnyross/pstack-anywhere",
+	"license": "MIT",
+	"keywords": [
+		"pstack",
+		"poteto-mode",
+		"workflow",
+		"principles",
+		"agent-style",
+		"unslop"
+	],
+	"category": "developer-tools",
+	"tags": [
+		"workflow",
+		"principles",
+		"review",
+		"planning"
+	],
+	"skills": "./skills/"
+}
