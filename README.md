@@ -20,7 +20,8 @@ existing skill directories. Re-running is idempotent.
 
 Native `SKILL.md` hosts (Claude Code, Codex, and generic) receive skill
 directories. Gemini CLI, Copilot, Windsurf, Cline, and opencode receive thin
-pointer commands that direct the agent to the canonical absolute `SKILL.md`.
+pointer commands that direct the agent to a rewritten absolute `SKILL.md` in
+the shim-owned XDG data staging directory.
 Instruction files contain a replaceable `pstack-anywhere` marker block, so
 unrelated content is preserved.
 
@@ -49,8 +50,11 @@ are unavailable there rather than pretending a transcript path exists.
 python3 bin/pstack-anywhere uninstall --host claude-code --scope user
 ```
 
-The installer records only its own artifacts, removes its instruction marker,
-and does not overwrite unrelated instruction content.
+The installer records only its own artifacts in
+`$XDG_STATE_HOME/pstack-anywhere/` (or `~/.local/state/pstack-anywhere/`),
+removes its instruction marker, and does not overwrite unrelated instruction
+content. Reinstall refreshes owned artifacts; `--force` is required only to
+replace an unowned existing skill directory.
 
 ## adding a host
 

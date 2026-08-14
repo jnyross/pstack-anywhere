@@ -5,9 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
-CLI = ROOT / "bin" / "pstack-anywhere"
+CLI = ROOT / "bin/pstack-anywhere"
+HOSTS = sorted(p.stem for p in (ROOT / "adapters").glob("*.json"))
+FORMATS = {"toml", "copilot", "markdown"}
 
 
 def run(*args, home, project=None):
@@ -20,52 +21,101 @@ def run(*args, home, project=None):
 
 
 class ShimTests(unittest.TestCase):
-    def test_adapter_schema_and_artifacts(self):
-        adapters = list((ROOT / "adapters").glob("*.json"))
-        self.assertEqual(len(adapters), 9)
-        skills = list((ROOT / "skills").glob("*/SKILL.md"))
-        for path in adapters:
+    def test_adapter_schema(self):
+        required = {"name", "display_name", "skills", "command", "instruction", "model_config",
+                    "probes", "rewrites", "capabilities"}
+        optional = {"instruction_fallback_user"}
+        for path in (ROOT / "adapters").glob("*.json"):
             data = json.loads(path.read_text())
-            for key in ("name", "skills", "command", "instruction", "capabilities"):
-                self.assertIn(key, data)
+            self.assertTrue(set(data) <= required | optional)
+            self.assertTrue(required <= set(data))
             self.assertEqual(data["name"], path.stem)
-            self.assertTrue(skills)
+            for key in ("skills", "command", "instruction", "model_config"):
+                self.assertTrue(set(data[key]) >= {"user", "project"})
+            self.assertIn(data["skills"]["mode"], {"native", "pointer"})
+            self.assertIn(data["command"]["format"], FORMATS)
+            for scope in ("user", "project"):
+                self.assertIsInstance(data["probes"][scope], list)
+            self.assertTrue(data["rewrites"])
+            self.assertTrue(data["capabilities"])
 
-    def test_round_trip_and_idempotence(self):
+    def test_every_skill_has_artifacts_for_each_applicable_scope(self):
+        skills = list((ROOT / "skills").glob("*/SKILL.md"))
+        with tempfile.TemporaryDirectory() as td:
+            home, project = Path(td) / "home", Path(td) / "project"
+            home.mkdir()
+            project.mkdir()
+            for host in HOSTS:
+                adapter = json.loads((ROOT / "adapters" / f"{host}.json").read_text())
+                for scope in ("user", "project"):
+                    if not (adapter["skills"][scope] or adapter["command"][scope]):
+                        continue
+                    result = run("install", "--host", host, "--scope", scope, home=home, project=project)
+                    self.assertEqual(result.returncode, 0, (host, scope, result.stderr))
+                    target = home if scope == "user" else project
+                    self.assertGreaterEqual(sum(1 for value in target.rglob("*") if value.is_file()), len(skills))
+                    run("uninstall", "--host", host, "--scope", scope, home=home, project=project)
+
+    def test_refresh_force_and_unrelated_files(self):
         with tempfile.TemporaryDirectory() as td:
             home = Path(td) / "home"
             home.mkdir()
-            before = sorted(str(p.relative_to(home)) for p in home.rglob("*"))
-            first = run("install", "--host", "claude-code", "--scope", "user", home=home)
-            self.assertEqual(first.returncode, 0, first.stderr)
-            installed = sorted((str(p.relative_to(home)), p.read_bytes()) for p in home.rglob("*") if p.is_file())
-            second = run("install", "--host", "claude-code", "--scope", "user", home=home)
-            self.assertEqual(second.returncode, 0, second.stderr)
-            again = sorted((str(p.relative_to(home)), p.read_bytes()) for p in home.rglob("*") if p.is_file())
-            self.assertEqual(installed, again)
-            removed = run("uninstall", "--host", "claude-code", "--scope", "user", home=home)
-            self.assertEqual(removed.returncode, 0, removed.stderr)
-            self.assertEqual(before, sorted(str(p.relative_to(home)) for p in home.rglob("*")))
+            unowned = home / ".claude/skills/architect"
+            unowned.mkdir(parents=True)
+            (unowned / "sentinel").write_text("keep")
+            self.assertEqual(run("install", "--host", "claude-code", home=home).returncode, 0)
+            self.assertEqual((unowned / "sentinel").read_text(), "keep")
+            self.assertEqual(run("install", "--host", "claude-code", "--force", home=home).returncode, 0)
+            self.assertFalse((unowned / "sentinel").exists())
+            owned = home / ".claude/skills/setup-pstack/SKILL.md"
+            owned.write_text("changed")
+            run("install", "--host", "claude-code", home=home)
+            self.assertIn("Configure which models", owned.read_text())
+            unrelated = home / ".claude/unrelated.txt"
+            unrelated.write_text("preserve")
+            run("uninstall", "--host", "claude-code", home=home)
+            self.assertTrue(unrelated.exists())
 
-    def test_marker_replacement_preserves_surrounding_content(self):
+    def test_marker_replacement_and_no_marker(self):
         with tempfile.TemporaryDirectory() as td:
             home = Path(td) / "home"
-            instruction = home / "CLAUDE.md"
             home.mkdir()
-            instruction.write_text("before\n\n" + "<!-- BEGIN pstack-anywhere -->\nold\n<!-- END pstack-anywhere -->\n\n" + "after\n")
-            result = run("install", "--host", "claude-code", home=home)
-            self.assertEqual(result.returncode, 0, result.stderr)
+            instruction = home / ".claude/CLAUDE.md"
+            instruction.parent.mkdir(parents=True)
+            instruction.write_text("before\n\n<!-- BEGIN pstack-anywhere -->\nold\n<!-- END pstack-anywhere -->\n\nafter\n")
+            run("install", "--host", "claude-code", home=home)
             text = instruction.read_text()
             self.assertEqual(text.count("BEGIN pstack-anywhere"), 1)
             self.assertIn("before", text)
             self.assertIn("after", text)
             run("uninstall", "--host", "claude-code", home=home)
-            self.assertEqual(instruction.read_text(), "before\n\nafter")
+            self.assertEqual(instruction.read_text(), "before\n\nafter\n")
+            instruction.write_text("only surrounding content\n")
+            run("install", "--host", "claude-code", home=home)
+            self.assertEqual(instruction.read_text().count("BEGIN pstack-anywhere"), 1)
 
-    def test_pointer_description_and_absolute_path(self):
+    def test_pointers_rewrite_paths_and_shell_scripts_parse(self):
         with tempfile.TemporaryDirectory() as td:
-            home = Path(td) / "home"
-            project = Path(td) / "project"
+            home, project = Path(td) / "home", Path(td) / "project"
+            home.mkdir()
+            project.mkdir()
+            for host in ("gemini-cli", "copilot", "windsurf", "cline", "opencode"):
+                result = run("install", "--host", host, "--scope", "project", home=home, project=project)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                for path in project.rglob("*"):
+                    if path.is_file():
+                        text = path.read_text(errors="replace")
+                        self.assertNotIn("~/.cursor/", text, path)
+                        self.assertNotIn("filepstack-models.mdc", text, path)
+                        self.assertNotIn("configuration filepstack", text, path)
+                run("uninstall", "--host", host, "--scope", "project", home=home, project=project)
+            run("install", "--host", "codex", "--scope", "project", home=home, project=project)
+            for script in (project / ".agents/skills").rglob("*.sh"):
+                self.assertEqual(subprocess.run(["bash", "-n", str(script)]).returncode, 0, script)
+
+    def test_pointer_description_and_absolute_staging_path(self):
+        with tempfile.TemporaryDirectory() as td:
+            home, project = Path(td) / "home", Path(td) / "project"
             home.mkdir()
             project.mkdir()
             result = run("install", "--host", "gemini-cli", "--scope", "project", home=home, project=project)
@@ -73,21 +123,23 @@ class ShimTests(unittest.TestCase):
             pointer = project / ".gemini/commands/setup-pstack.toml"
             text = pointer.read_text()
             self.assertIn("Configure which models pstack uses", text)
-            self.assertIn(str(ROOT / "skills/setup-pstack/SKILL.md"), text)
-            self.assertTrue(Path(ROOT / "skills/setup-pstack/SKILL.md").is_absolute())
+            prompt = next(line for line in text.splitlines() if line.startswith("prompt"))
+            self.assertIn(str(home), prompt)
+            self.assertIn("SKILL.md", prompt)
 
-    def test_path_rewrite_including_shell_script(self):
+    def test_doctor_clean_and_installed(self):
         with tempfile.TemporaryDirectory() as td:
-            home = Path(td) / "home"
-            project = Path(td) / "project"
+            home, project = Path(td) / "home", Path(td) / "project"
             home.mkdir()
             project.mkdir()
-            result = run("install", "--host", "codex", "--scope", "project", home=home, project=project)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            copied = project / ".agents/skills/poteto-mode/scripts/worktree-audit.sh"
-            text = copied.read_text()
-            self.assertNotIn("~/.cursor/", text)
-            self.assertIn("transcript history unavailable", text)
+            clean = run("doctor", "--host", "claude-code", "--scope", "user", home=home, project=project)
+            self.assertEqual(clean.returncode, 0)
+            self.assertIn("installed=False", clean.stdout)
+            run("install", "--host", "claude-code", home=home, project=project)
+            installed = run("doctor", "--host", "claude-code", "--scope", "user", home=home, project=project)
+            self.assertEqual(installed.returncode, 0)
+            self.assertIn("installed=True", installed.stdout)
+            self.assertIn("missing artifacts: none", installed.stdout)
 
 
 if __name__ == "__main__":

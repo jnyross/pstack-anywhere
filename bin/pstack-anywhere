@@ -1,235 +1,278 @@
 #!/usr/bin/env python3
-"""Install the pstack skills into several coding-agent hosts."""
+"""Install pstack skills into coding-agent hosts."""
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 BEGIN = "<!-- BEGIN pstack-anywhere -->"
 END = "<!-- END pstack-anywhere -->"
+FORMATS = {"toml", "copilot", "markdown"}
 
 
-def repo_root() -> Path:
+def root() -> Path:
     return Path(__file__).resolve().parents[1]
-
-
-def load_adapters() -> dict[str, dict]:
-    result = {}
-    for path in sorted((repo_root() / "adapters").glob("*.json")):
-        with path.open(encoding="utf-8") as stream:
-            data = json.load(stream)
-        result[data["name"]] = data
-    return result
 
 
 def home() -> Path:
     return Path(os.environ.get("HOME", str(Path.home()))).expanduser()
 
 
-def expand(value: str, project: Path | None = None) -> Path:
-    value = value.replace("$HOME", str(home()))
-    value = value.replace("$PROJECT", str(project or Path.cwd()))
-    return Path(value).expanduser()
+def expand(value: str | None, project: Path | None = None) -> Path | None:
+    if not value:
+        return None
+    codex_home = os.environ.get("CODEX_HOME", str(home() / ".codex"))
+    return Path(value.replace("$HOME", str(home())).replace("$CODEX_HOME", codex_home).replace("$PROJECT", str(project or Path.cwd()))).expanduser()
 
 
-def target_path(spec: dict, scope: str, project: Path | None) -> Path | None:
-    value = spec.get(scope)
-    return expand(value, project) if value else None
+def load_adapters() -> dict[str, dict]:
+    result = {}
+    for path in sorted((root() / "adapters").glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        result[data["name"]] = data
+    return result
+
+
+def skills() -> list[Path]:
+    return sorted(path.parent for path in (root() / "skills").glob("*/SKILL.md"))
 
 
 def frontmatter(text: str) -> dict[str, str]:
     if not text.startswith("---"):
         return {}
     end = text.find("\n---", 3)
-    if end < 0:
-        return {}
-    result = {}
-    for line in text[3:end].splitlines():
-        if ":" in line:
-            key, value = line.split(":", 1)
-            result[key.strip()] = value.strip().strip("\"'")
-    return result
+    return dict(
+        (line.split(":", 1)[0].strip(), line.split(":", 1)[1].strip().strip("\"'"))
+        for line in text[3:end].splitlines()
+        if ":" in line
+    ) if end >= 0 else {}
 
 
-def rewrite(text: str, adapter: dict) -> str:
+def state_root() -> Path:
+    return Path(os.environ.get("XDG_STATE_HOME", str(home() / ".local/state"))) / "pstack-anywhere"
+
+
+def state_path(host: str, scope: str, project: Path | None) -> Path:
+    identity = str(project or home()) if scope == "project" else str(home())
+    digest = hashlib.sha256(identity.encode()).hexdigest()[:16]
+    return state_root() / host / f"{scope}-{digest}.json"
+
+
+def staging_root(host: str) -> Path:
+    data = Path(os.environ.get("XDG_DATA_HOME", str(home() / ".local/share")))
+    return data / "pstack-anywhere" / host / "skills"
+
+
+def rewrite(text: str, adapter: dict, staged: Path) -> str:
+    values = {"$PSTACK_SKILLS": str(staged)}
     for old, new in adapter.get("rewrites", {}).items():
-        text = text.replace(old, new)
+        replacement = new
+        for key, value in values.items():
+            replacement = replacement.replace(key, value)
+        text = text.replace(old, replacement)
+        if old.startswith("~"):
+            text = text.replace("$HOME" + old[1:], replacement)
     return text
 
 
-def skills() -> list[Path]:
-    return sorted(p.parent for p in (repo_root() / "skills").glob("*/SKILL.md"))
-
-
-def marker_block(adapter: dict) -> str:
-    body = Path(repo_root() / "shim" / "CAPABILITIES.md").read_text(encoding="utf-8")
-    title = adapter["display_name"]
-    return f"{BEGIN}\n\n## pstack portability contract ({title})\n\n{body}\n{END}"
+def capability_block(adapter: dict) -> str:
+    lines = [f"- `{key}`: {value}" for key, value in adapter["capabilities"].items()]
+    return (
+        f"{BEGIN}\n\n## pstack host mapping ({adapter['display_name']})\n\n"
+        + "\n".join(lines)
+        + f"\n\nGeneral contract: `{root() / 'shim/CAPABILITIES.md'}`\n{END}"
+    )
 
 
 def update_instruction(path: Path, adapter: dict, remove: bool = False) -> bool:
     old = path.read_text(encoding="utf-8") if path.exists() else ""
-    start = old.find(BEGIN)
-    finish = old.find(END, start + len(BEGIN)) if start >= 0 else -1
-    if start >= 0 and finish >= 0:
+    start, finish = old.find(BEGIN), old.find(END)
+    if start >= 0 and finish >= start:
         finish += len(END)
-        if remove:
-            new = old[:start].rstrip() + old[finish:]
-            new = new.strip("\n")
-        else:
-            block = marker_block(adapter)
-            new = (old[:start].rstrip() + "\n\n" + block + old[finish:]).strip("\n") + "\n"
+        new = old[:start].rstrip() + (old[finish:] if remove else "\n\n" + capability_block(adapter) + old[finish:])
+        new = new.strip("\n")
     elif remove:
         return False
     else:
-        block = marker_block(adapter)
-        new = (old.rstrip() + "\n\n" + block if old.strip() else block) + "\n"
+        new = (old.rstrip() + "\n\n" if old.strip() else "") + capability_block(adapter)
+    if not new and remove:
+        if path.exists():
+            path.unlink()
+        return True
+    new += "\n"
     if new == old:
         return False
-    if new:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(new, encoding="utf-8")
-    elif path.exists():
-        path.unlink()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(new, encoding="utf-8")
     return True
 
 
-def pointer(adapter: dict, skill: Path) -> tuple[Path, str]:
-    meta = frontmatter((skill / "SKILL.md").read_text(encoding="utf-8"))
-    description = meta.get("description", f"Run the {skill.name} pstack skill.")
-    canonical = str(skill / "SKILL.md")
+def yaml_quote(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def pointer(adapter: dict, source: Path, staged: Path) -> tuple[Path, str]:
+    meta = frontmatter((source / "SKILL.md").read_text(encoding="utf-8"))
+    description = meta.get("description", f"Run the {source.name} pstack skill.")
+    canonical = staged / source.name / "SKILL.md"
     command = adapter["command"]
-    filename = skill.name + command["extension"]
-    path = Path(filename)
-    mode = command["format"]
-    if mode == "toml":
-        body = f'description = {json.dumps(description)}\nprompt = {json.dumps(f"Read and follow the canonical pstack skill at {canonical}.")}\n'
-    elif mode == "copilot":
-        body = f"---\ndescription: {description}\n---\n\nRead and follow the canonical pstack skill at `{canonical}`.\n"
+    filename = source.name + command["extension"]
+    if command["format"] == "toml":
+        body = f"description = {json.dumps(description)}\nprompt = {json.dumps(f'Read and follow the canonical pstack skill at {canonical}.')}\n"
     else:
-        body = f"---\ndescription: {description}\n---\n\nRead and follow the canonical pstack skill at `{canonical}`.\n"
-    return path, body
+        body = f"---\ndescription: {yaml_quote(description)}\n---\n\nRead and follow the canonical pstack skill at `{canonical}`.\n"
+    return Path(filename), body
 
 
-def manifest_path(root: Path) -> Path:
-    return root / ".pstack-anywhere-manifest.json"
+def load_state(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"artifacts": [], "dirs": []}
 
 
-def install_one(adapter: dict, scope: str, project: Path | None, force: bool, dry: bool) -> list[Path]:
-    made: list[Path] = []
-    skill_root = target_path(adapter["skills"], scope, project)
-    command_root = target_path(adapter["command"], scope, project)
-    instruction = target_path(adapter["instruction"], scope, project)
-    if skill_root is None and command_root is None:
-        raise ValueError(f"{adapter['name']} has no install target for {scope} scope")
+def write_state(path: Path, state: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+
+def make_dir(path: Path, created: list[Path]) -> None:
+    missing = []
+    current = path
+    while not current.exists() and current != current.parent:
+        missing.append(current)
+        current = current.parent
+    path.mkdir(parents=True, exist_ok=True)
+    created.extend(missing)
+
+
+def install_one(adapter: dict, host: str, scope: str, project: Path, force: bool, dry: bool) -> list[Path]:
+    state_file = state_path(host, scope, project)
+    old = load_state(state_file)
+    owned = {Path(p) for p in old["artifacts"]}
+    artifacts: list[Path] = []
+    dirs: list[Path] = []
+    staged = staging_root(host)
+    skill_root = expand(adapter["skills"].get(scope), project)
+    command_root = expand(adapter["command"].get(scope), project)
+    instruction = expand(adapter["instruction"].get(scope), project)
+    if not skill_root and not command_root:
+        raise ValueError(f"{host} has no install target for {scope} scope")
+    if not dry:
+        if skill_root:
+            make_dir(skill_root, dirs)
+        if command_root:
+            make_dir(command_root, dirs)
+        if instruction:
+            make_dir(instruction.parent, dirs)
     if skill_root:
         for source in skills():
             destination = skill_root / source.name
-            if destination.exists() and not force:
-                print(f"skip existing {destination} (use --force to replace)")
+            if destination.exists() and destination not in owned and not force:
+                print(f"skip unowned existing {destination} (use --force to replace)")
                 continue
+            artifacts.append(destination)
             if not dry:
-                destination.parent.mkdir(parents=True, exist_ok=True)
                 if destination.exists():
                     shutil.rmtree(destination)
                 shutil.copytree(source, destination)
                 for file in destination.rglob("*"):
                     if file.is_file():
-                        file.write_text(rewrite(file.read_text(encoding="utf-8"), adapter), encoding="utf-8")
-            made.append(destination)
+                        file.write_text(rewrite(file.read_text(encoding="utf-8"), adapter, skill_root), encoding="utf-8")
     if command_root:
         for source in skills():
-            relative, body = pointer(adapter, source)
+            relative, body = pointer(adapter, source, staged)
             destination = command_root / relative
+            artifacts.append(destination)
             if not dry:
-                destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_text(body, encoding="utf-8")
-            made.append(destination)
+        if not dry:
+            make_dir(staged, dirs)
+            for source in skills():
+                destination = staged / source.name
+                if destination.exists():
+                    shutil.rmtree(destination)
+                shutil.copytree(source, destination)
+                for file in destination.rglob("*"):
+                    if file.is_file():
+                        file.write_text(rewrite(file.read_text(encoding="utf-8"), adapter, staged), encoding="utf-8")
+            dirs.append(staged)
     if instruction:
+        artifacts.append(instruction)
         if not dry:
             update_instruction(instruction, adapter)
-        made.append(instruction)
     if not dry:
-        root = skill_root or command_root or instruction.parent
-        manifest_path(root).parent.mkdir(parents=True, exist_ok=True)
-        existing = []
-        if manifest_path(root).exists():
-            try:
-                existing = json.loads(manifest_path(root).read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                existing = []
-        merged = list(dict.fromkeys(existing + [str(p) for p in made]))
-        manifest_path(root).write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
-    return made
+        make_dir(state_file.parent, dirs)
+        dirs.extend([
+            state_file.parent.parent,
+            state_file.parent.parent.parent,
+            state_file.parent.parent.parent.parent,
+        ])
+        write_state(state_file, {
+            "artifacts": [str(p) for p in dict.fromkeys(artifacts)],
+            "dirs": [str(p) for p in dict.fromkeys(old.get("dirs", []) + [str(p) for p in dirs])],
+        })
+    return artifacts
 
 
-def uninstall_one(adapter: dict, scope: str, project: Path | None, dry: bool) -> list[Path]:
-    targets = [target_path(adapter[key], scope, project) for key in ("skills", "command")]
-    instruction = target_path(adapter["instruction"], scope, project)
+def uninstall_one(adapter: dict, host: str, scope: str, project: Path, dry: bool) -> list[Path]:
+    state_file = state_path(host, scope, project)
+    state = load_state(state_file)
     removed = []
-    for root in targets:
-        if not root:
-            continue
-        manifest = manifest_path(root)
-        if manifest.exists():
-            try:
-                paths = [Path(p) for p in json.loads(manifest.read_text(encoding="utf-8"))]
-            except (OSError, ValueError):
-                paths = []
-            for path in paths:
-                if path == instruction:
-                    continue
-                if path.is_dir():
-                    if not dry:
-                        shutil.rmtree(path)
-                    removed.append(path)
-                elif path.exists():
-                    if not dry:
-                        path.unlink()
-                    removed.append(path)
+    for value in state["artifacts"]:
+        path = Path(value)
+        if path == expand(adapter["instruction"].get(scope), project):
+            if path.exists() and not dry:
+                update_instruction(path, adapter, remove=True)
+            removed.append(path)
+        elif path.exists() and (path.is_file() or path.is_dir()):
             if not dry:
-                manifest.unlink()
-            if not dry and root.exists() and not any(root.iterdir()):
-                root.rmdir()
-            if not dry:
-                parent = root.parent
-                while parent != home() and parent != project and parent.exists() and not any(parent.iterdir()):
-                    parent.rmdir()
-                    parent = parent.parent
-    if instruction and instruction.exists():
-        if not dry:
-            update_instruction(instruction, adapter, remove=True)
-        removed.append(instruction)
-        if not dry:
-            parent = instruction.parent
-            while parent != parent.parent and parent != project and not any(parent.iterdir()):
-                parent.rmdir()
-                parent = parent.parent
+                path.unlink() if path.is_file() else shutil.rmtree(path)
+            removed.append(path)
+    if not dry and state_file.exists():
+        state_file.unlink()
+    if not dry:
+        for value in sorted(state["dirs"], key=lambda item: len(Path(item).parts), reverse=True):
+            path = Path(value)
+            if path.exists() and path.is_dir():
+                if path == staging_root(host):
+                    shutil.rmtree(path)
+                elif not any(path.iterdir()):
+                    path.rmdir()
     return removed
 
 
-def detected(adapters: dict[str, dict], scope: str, project: Path | None) -> list[str]:
-    found = []
-    for name, adapter in adapters.items():
-        probes = adapter.get("probes", {}).get(scope, [])
-        if any(target_path({"path": p}, "path", project).exists() for p in probes):
-            found.append(name)
-    return found
+def detected(adapters: dict[str, dict], scope: str, project: Path) -> list[str]:
+    return [
+        name for name, adapter in adapters.items()
+        if any(expand(p, project).exists() for p in adapter.get("probes", {}).get(scope, []))
+    ]
 
 
-def doctor(adapters: dict[str, dict], scope: str, project: Path | None) -> int:
-    for name, adapter in adapters.items():
-        caps = adapter["capabilities"]
-        print(f"{name}:")
-        for key, value in caps.items():
-            print(f"  {key}: {value}")
-        if not caps.get("transcript_history", "").startswith("available"):
-            print("  doctor: history-dependent skills unavailable")
-    return 0
+def doctor(adapters: dict[str, dict], scope: str, project: Path, host_filter: str) -> int:
+    hosts = [host_filter] if host_filter != "auto" else list(adapters)
+    bad = False
+    for name in hosts:
+        adapter = adapters[name]
+        found = name in detected(adapters, scope, project)
+        targets = [expand(spec.get(scope), project) for spec in (adapter["skills"], adapter["command"], adapter["instruction"]) if spec.get(scope)]
+        state = load_state(state_path(name, scope, project))
+        installed = bool(state["artifacts"])
+        missing = [p for p in state["artifacts"] + state["dirs"] if not Path(p).exists()]
+        unavailable = [k for k, v in adapter["capabilities"].items() if "unavailable" in v]
+        print(f"{name}: detected={found} installed={installed}")
+        print("  targets: " + ", ".join(str(p) for p in targets))
+        print("  missing artifacts: " + (", ".join(missing) if missing else "none"))
+        print("  unavailable: " + (", ".join(unavailable) if unavailable else "none"))
+        if host_filter != "auto" and missing:
+            bad = True
+    return 1 if bad else 0
 
 
 def main(argv: list[str]) -> int:
@@ -244,30 +287,26 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     project = args.project_dir.resolve() if args.project_dir else Path.cwd()
     if args.command == "list-hosts":
-        for name in adapters:
-            print(name)
+        print("\n".join(adapters))
         return 0
+    if args.host != "auto" and args.host not in adapters:
+        print(f"unknown host {args.host}; choose from {', '.join(adapters)}", file=sys.stderr)
+        return 2
     if args.command == "doctor":
-        return doctor(adapters, args.scope, project)
-    if args.host == "auto":
-        hosts = detected(adapters, args.scope, project)
-        if not hosts:
-            probes = sorted({p for a in adapters.values() for p in a.get("probes", {}).get(args.scope, [])})
-            print("no hosts detected; probed: " + ", ".join(probes), file=sys.stderr)
-            return 2
-        print("detected hosts: " + ", ".join(hosts))
-    else:
-        if args.host not in adapters:
-            print(f"unknown host {args.host}; choose from {', '.join(adapters)}", file=sys.stderr)
-            return 2
-        hosts = [args.host]
-    for name in hosts:
-        adapter = adapters[name]
-        paths = (install_one if args.command == "install" else uninstall_one)(
-            adapter, args.scope, project, args.force, args.dry_run
-        ) if args.command == "install" else uninstall_one(adapter, args.scope, project, args.dry_run)
-        action = "would update" if args.dry_run else ("installed" if args.command == "install" else "removed")
-        print(f"{name}: {action} {len(paths)} artifacts")
+        return doctor(adapters, args.scope, project, args.host)
+    hosts = detected(adapters, args.scope, project) if args.host == "auto" else [args.host]
+    if not hosts:
+        probes = sorted({p for a in adapters.values() for p in a.get("probes", {}).get(args.scope, [])})
+        print("no hosts detected; probed: " + ", ".join(probes), file=sys.stderr)
+        return 2
+    for host in hosts:
+        adapter = adapters[host]
+        paths = (
+            install_one(adapter, host, args.scope, project, args.force, args.dry_run)
+            if args.command == "install"
+            else uninstall_one(adapter, host, args.scope, project, args.dry_run)
+        )
+        print(f"{host}: {'would update' if args.dry_run else args.command} {len(paths)} artifacts")
     return 0
 
 

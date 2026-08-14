@@ -35,8 +35,9 @@ Every real slug written must be in the detected set; `inherit-parent` and `auto`
 
 For Cursor, write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`
 and one line per role, using the same labels poteto-mode uses. For another
-host, write the configured model file in the adapter's format. Overwrite the
-whole file so re-runs stay idempotent. Shape:
+host, write the configured model file as line-based `role: model` entries.
+The filename and location come from the adapter; the format stays the same.
+Overwrite the whole file so re-runs stay idempotent. Shape:
 
 ```
 ---

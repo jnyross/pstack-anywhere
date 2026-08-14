@@ -18,7 +18,9 @@ agent API:
   written.
 
 The adapter's `capabilities` object is the source of truth used by the CLI and
-is copied into each host's always-on instruction file. "unverified" and
+is summarized in each host's always-on instruction file. The model config is
+always the existing line-based `role: model` shape; only its host-specific
+filename changes. "unverified" and
 "unavailable" are intentional degradations: skills that need that primitive
 must use sequential passes or be treated as unavailable, rather than
 inventing a path or pretending a tool exists. In particular, recall, reflect,
@@ -26,5 +28,6 @@ and automate-me are unavailable on hosts without on-disk transcript history.
 
 Native `SKILL.md` hosts (Claude Code, Codex, and generic) receive copied skill
 directories. Other hosts receive one thin command/workflow/prompt pointer per
-skill. The pointer names the canonical absolute `SKILL.md` in this checkout,
-so the skill text has one source of truth.
+skill. The pointer names a rewritten absolute `SKILL.md` in the shim-owned
+XDG data staging directory, so the skill text has one canonical source in git
+and one refreshed host-specific runtime copy.
