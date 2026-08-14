@@ -99,19 +99,40 @@ class ShimTests(unittest.TestCase):
             home, project = Path(td) / "home", Path(td) / "project"
             home.mkdir()
             project.mkdir()
-            for host in ("gemini-cli", "copilot", "windsurf", "cline", "opencode"):
+            for host in ("claude-code", "codex", "gemini-cli", "copilot", "windsurf", "cline", "opencode"):
                 result = run("install", "--host", host, "--scope", "project", home=home, project=project)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 for path in project.rglob("*"):
                     if path.is_file():
                         text = path.read_text(errors="replace")
-                        self.assertNotIn("~/.cursor/", text, path)
+                        self.assertNotIn(".cursor/", text, path)
+                        self.assertNotIn("$HOME", text, path)
+                        self.assertNotIn("$PSTACK_", text, path)
                         self.assertNotIn("filepstack-models.mdc", text, path)
                         self.assertNotIn("configuration filepstack", text, path)
                 run("uninstall", "--host", host, "--scope", "project", home=home, project=project)
             run("install", "--host", "codex", "--scope", "project", home=home, project=project)
             for script in (project / ".agents/skills").rglob("*.sh"):
                 self.assertEqual(subprocess.run(["bash", "-n", str(script)]).returncode, 0, script)
+
+    def test_shared_pointer_staging_survives_scope_uninstall(self):
+        with tempfile.TemporaryDirectory() as td:
+            home, project = Path(td) / "home", Path(td) / "project"
+            home.mkdir()
+            project.mkdir()
+            self.assertEqual(run("install", "--host", "gemini-cli", "--scope", "user",
+                                 home=home, project=project).returncode, 0)
+            self.assertEqual(run("install", "--host", "gemini-cli", "--scope", "project",
+                                 home=home, project=project).returncode, 0)
+            staging = home / ".local/share/pstack-anywhere/gemini-cli/skills"
+            self.assertTrue(staging.exists())
+            run("uninstall", "--host", "gemini-cli", "--scope", "user", home=home, project=project)
+            self.assertTrue(staging.exists())
+            pointer = project / ".gemini/commands/setup-pstack.toml"
+            self.assertTrue(pointer.exists())
+            self.assertIn(str(staging), pointer.read_text())
+            run("uninstall", "--host", "gemini-cli", "--scope", "project", home=home, project=project)
+            self.assertFalse(staging.exists())
 
     def test_pointer_description_and_absolute_staging_path(self):
         with tempfile.TemporaryDirectory() as td:

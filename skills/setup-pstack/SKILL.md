@@ -6,10 +6,9 @@ description: Configure which models pstack uses per role. Detects your available
 # Setup pstack
 
 Write the host's configured pstack model file from `adapters/<host>.json`.
-Cursor keeps its existing `~/.cursor/rules/pstack-models.mdc` behavior. Other
-hosts use the adapter's configured location and format. The skills read it and
-fall back to their inline defaults when a line is absent, so this is an
-override layer, not a requirement.
+The adapter supplies the file location and format for each host. The skills
+read it and fall back to their inline defaults when a line is absent, so this
+is an override layer, not a requirement.
 
 ## Steps
 
@@ -33,10 +32,11 @@ Every real slug written must be in the detected set; `inherit-parent` and `auto`
 
 ### 5. Write the rule
 
-For Cursor, write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`
-and one line per role, using the same labels poteto-mode uses. For another
-host, write the configured model file as line-based `role: model` entries.
-The filename and location come from the adapter; the format stays the same.
+Write the configured model file at the adapter-provided location. For an
+adapter whose format is `mdc`, include `alwaysApply: true`; otherwise use the
+host's required always-on mechanism. Keep one line per role, using the same
+labels poteto-mode uses. Non-`mdc` adapters use line-based `role: model`
+entries; the filename and location come from the adapter.
 Overwrite the whole file so re-runs stay idempotent. Shape:
 
 ```

@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -70,11 +69,18 @@ def staging_root(host: str) -> Path:
 
 
 def rewrite(text: str, adapter: dict, staged: Path) -> str:
-    values = {"$PSTACK_SKILLS": str(staged)}
+    if adapter["name"] == "cursor":
+        return text
+    values = {
+        "$PSTACK_SKILLS": str(staged),
+        "$HOME": str(home()),
+    }
     for old, new in adapter.get("rewrites", {}).items():
         replacement = new
         for key, value in values.items():
             replacement = replacement.replace(key, value)
+        if replacement.startswith("~"):
+            replacement = str(home()) + replacement[1:]
         text = text.replace(old, replacement)
         if old.startswith("~"):
             text = text.replace("$HOME" + old[1:], replacement)
@@ -82,7 +88,13 @@ def rewrite(text: str, adapter: dict, staged: Path) -> str:
 
 
 def capability_block(adapter: dict) -> str:
-    lines = [f"- `{key}`: {value}" for key, value in adapter["capabilities"].items()]
+    def readable(value: str) -> str:
+        return (value.replace("$HOME", "~")
+                .replace("$PROJECT", "project root")
+                .replace("$REPO_ROOT", "repository root")
+                .replace("$CODEX_HOME", "~/.codex"))
+
+    lines = [f"- `{key}`: {readable(value)}" for key, value in adapter["capabilities"].items()]
     return (
         f"{BEGIN}\n\n## pstack host mapping ({adapter['display_name']})\n\n"
         + "\n".join(lines)
@@ -202,18 +214,12 @@ def install_one(adapter: dict, host: str, scope: str, project: Path, force: bool
                 for file in destination.rglob("*"):
                     if file.is_file():
                         file.write_text(rewrite(file.read_text(encoding="utf-8"), adapter, staged), encoding="utf-8")
-            dirs.append(staged)
     if instruction:
         artifacts.append(instruction)
         if not dry:
             update_instruction(instruction, adapter)
     if not dry:
         make_dir(state_file.parent, dirs)
-        dirs.extend([
-            state_file.parent.parent,
-            state_file.parent.parent.parent,
-            state_file.parent.parent.parent.parent,
-        ])
         write_state(state_file, {
             "artifacts": [str(p) for p in dict.fromkeys(artifacts)],
             "dirs": [str(p) for p in dict.fromkeys(old.get("dirs", []) + [str(p) for p in dirs])],
@@ -237,12 +243,16 @@ def uninstall_one(adapter: dict, host: str, scope: str, project: Path, dry: bool
             removed.append(path)
     if not dry and state_file.exists():
         state_file.unlink()
+    keep_staging = any((state_root() / host).glob("*.json"))
     if not dry:
+        if not keep_staging and staging_root(host).exists():
+            shutil.rmtree(staging_root(host))
         for value in sorted(state["dirs"], key=lambda item: len(Path(item).parts), reverse=True):
             path = Path(value)
             if path.exists() and path.is_dir():
                 if path == staging_root(host):
-                    shutil.rmtree(path)
+                    if not keep_staging:
+                        shutil.rmtree(path)
                 elif not any(path.iterdir()):
                     path.rmdir()
     return removed
