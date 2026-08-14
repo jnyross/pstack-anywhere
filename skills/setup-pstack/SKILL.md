@@ -5,7 +5,11 @@ description: Configure which models pstack uses per role. Detects your available
 
 # Setup pstack
 
-Write `~/.cursor/rules/pstack-models.mdc`, an always-applied rule that sets pstack's model per role. The skills read it and fall back to their inline defaults when a line is absent, so this is an override layer, not a requirement.
+Write the host's configured pstack model file from `adapters/<host>.json`.
+Cursor keeps its existing `~/.cursor/rules/pstack-models.mdc` behavior. Other
+hosts use the adapter's configured location and format. The skills read it and
+fall back to their inline defaults when a line is absent, so this is an
+override layer, not a requirement.
 
 ## Steps
 
@@ -15,7 +19,9 @@ Enumerate the model slugs you can pass to a `Task` subagent in this session; tha
 
 ### 2. Load current state
 
-The default role-to-model mapping is the rule shape shown in step 5 below. If `~/.cursor/rules/pstack-models.mdc` already exists, read it and treat its values as the current choices. Otherwise start from those defaults.
+The default role-to-model mapping is the rule shape shown in step 5 below. If
+the configured model file already exists, read it and treat its values as the
+current choices. Otherwise start from those defaults.
 
 ### 3. Map and confirm
 
@@ -27,7 +33,10 @@ Every real slug written must be in the detected set; `inherit-parent` and `auto`
 
 ### 5. Write the rule
 
-Write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true` and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
+For Cursor, write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`
+and one line per role, using the same labels poteto-mode uses. For another
+host, write the configured model file in the adapter's format. Overwrite the
+whole file so re-runs stay idempotent. Shape:
 
 ```
 ---
