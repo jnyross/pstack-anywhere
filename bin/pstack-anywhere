@@ -6,12 +6,15 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
 
 BEGIN = "<!-- BEGIN pstack-anywhere -->"
 END = "<!-- END pstack-anywhere -->"
+NOTICE_BEGIN = "<!-- BEGIN pstack-anywhere unavailable-capability notice -->"
+NOTICE_END = "<!-- END pstack-anywhere unavailable-capability notice -->"
 FORMATS = {"toml", "copilot", "markdown"}
 
 
@@ -76,6 +79,9 @@ def rewrite(text: str, adapter: dict, staged: Path) -> str:
         "$HOME": str(home()),
     }
     for old, new in adapter.get("rewrites", {}).items():
+        if "pstack-anywhere-unavailable" in new:
+            new = ("__PSTACK_UNAVAILABLE_TRANSCRIPTS__"
+                   if "transcripts" in new else "__PSTACK_UNAVAILABLE_WORKTREES__")
         replacement = new
         for key, value in values.items():
             replacement = replacement.replace(key, value)
@@ -85,6 +91,65 @@ def rewrite(text: str, adapter: dict, staged: Path) -> str:
         if old.startswith("~"):
             text = text.replace("$HOME" + old[1:], replacement)
     return text
+
+
+def unavailable_rewrites(adapter: dict) -> dict[str, str]:
+    return {
+        old: ("__PSTACK_UNAVAILABLE_TRANSCRIPTS__"
+              if "transcripts" in new else "__PSTACK_UNAVAILABLE_WORKTREES__")
+        for old, new in adapter.get("rewrites", {}).items()
+        if "pstack-anywhere-unavailable" in new or new.startswith("__PSTACK_UNAVAILABLE_")
+    }
+
+
+def skill_needs_notice(source: Path, adapter: dict) -> bool:
+    unavailable = unavailable_rewrites(adapter)
+    if not unavailable:
+        return False
+    return any(
+        any(old in path.read_text(encoding="utf-8") for old in unavailable)
+        for path in source.rglob("*")
+        if path.is_file()
+    )
+
+
+def unavailable_notice(adapter: dict) -> str:
+    return (
+        f"{NOTICE_BEGIN}\n\n"
+        f"## unavailable on {adapter['display_name']}\n\n"
+        "This skill depends on a host capability that is unavailable here, "
+        "so it cannot run on this host. Say so clearly instead of looking for "
+        "a substitute location or improvising findings.\n\n"
+        f"{NOTICE_END}\n\n"
+    )
+
+
+def add_skill_notice(path: Path, adapter: dict, source: Path) -> None:
+    if not skill_needs_notice(source, adapter):
+        return
+    skill_file = path / "SKILL.md"
+    text = skill_file.read_text(encoding="utf-8")
+    start, finish = text.find(NOTICE_BEGIN), text.find(NOTICE_END)
+    if start >= 0 and finish >= start:
+        finish += len(NOTICE_END)
+        text = text[:start] + text[finish:].lstrip("\n")
+    lines = []
+    for line in text.splitlines(keepends=True):
+        if "__PSTACK_UNAVAILABLE_" in line and not re.match(r"\s*[A-Za-z_][A-Za-z0-9_]*=", line):
+            line = "Transcript history is unavailable on this host; do not look for a local transcript path.\n"
+        lines.append(line)
+    text = "".join(lines)
+    notice = unavailable_notice(adapter)
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        if end >= 0:
+            end += len("\n---")
+            text = text[:end] + "\n\n" + notice + text[end:].lstrip("\n")
+        else:
+            text = notice + text
+    else:
+        text = notice + text
+    skill_file.write_text(text, encoding="utf-8")
 
 
 def capability_block(adapter: dict) -> str:
@@ -197,6 +262,7 @@ def install_one(adapter: dict, host: str, scope: str, project: Path, force: bool
                 for file in destination.rglob("*"):
                     if file.is_file():
                         file.write_text(rewrite(file.read_text(encoding="utf-8"), adapter, skill_root), encoding="utf-8")
+                add_skill_notice(destination, adapter, source)
     if command_root:
         for source in skills():
             relative, body = pointer(adapter, source, staged)
@@ -214,6 +280,7 @@ def install_one(adapter: dict, host: str, scope: str, project: Path, force: bool
                 for file in destination.rglob("*"):
                     if file.is_file():
                         file.write_text(rewrite(file.read_text(encoding="utf-8"), adapter, staged), encoding="utf-8")
+                add_skill_notice(destination, adapter, source)
     if instruction:
         artifacts.append(instruction)
         if not dry:

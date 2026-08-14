@@ -108,6 +108,7 @@ class ShimTests(unittest.TestCase):
                         self.assertNotIn(".cursor/", text, path)
                         self.assertNotIn("$HOME", text, path)
                         self.assertNotIn("$PSTACK_", text, path)
+                        self.assertNotRegex(text, r"(?:~|/)[^`\n ]*pstack-anywhere-unavailable[^`\n ]*", path)
                         self.assertNotIn("filepstack-models.mdc", text, path)
                         self.assertNotIn("configuration filepstack", text, path)
                 run("uninstall", "--host", host, "--scope", "project", home=home, project=project)
@@ -133,6 +134,34 @@ class ShimTests(unittest.TestCase):
             self.assertIn(str(staging), pointer.read_text())
             run("uninstall", "--host", "gemini-cli", "--scope", "project", home=home, project=project)
             self.assertFalse(staging.exists())
+
+    def test_unavailable_capability_notice_is_derived_and_idempotent(self):
+        begin = "<!-- BEGIN pstack-anywhere unavailable-capability notice -->"
+        with tempfile.TemporaryDirectory() as td:
+            home, project = Path(td) / "home", Path(td) / "project"
+            home.mkdir()
+            project.mkdir()
+            for _ in range(2):
+                result = run("install", "--host", "claude-code", "--scope", "project",
+                             home=home, project=project)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            recall = project / ".claude/skills/recall/SKILL.md"
+            reflect = project / ".claude/skills/reflect/SKILL.md"
+            setup = project / ".claude/skills/setup-pstack/SKILL.md"
+            for path in (recall, reflect):
+                text = path.read_text()
+                self.assertEqual(text.count(begin), 1, path)
+                self.assertIn("cannot run on this host", text)
+                self.assertIn("Transcript history is unavailable on this host", text)
+                self.assertNotIn("__PSTACK_UNAVAILABLE_TRANSCRIPTS__", text)
+                self.assertNotRegex(text, r"(?:~|/)[^`\n ]*pstack-anywhere-unavailable[^`\n ]*")
+            self.assertNotIn(begin, setup.read_text())
+
+            cursor_home = Path(td) / "cursor-home"
+            cursor_home.mkdir()
+            run("install", "--host", "cursor", "--scope", "user", home=cursor_home)
+            cursor_recall = cursor_home / ".cursor/skills/recall/SKILL.md"
+            self.assertNotIn(begin, cursor_recall.read_text())
 
     def test_pointer_description_and_absolute_staging_path(self):
         with tempfile.TemporaryDirectory() as td:
