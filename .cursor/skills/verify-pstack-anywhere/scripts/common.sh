@@ -38,11 +38,58 @@ base_dir() {
   printf '%s\n' "${PSTACK_VERIFY_ROOT:-/tmp/pstack-verify}"
 }
 
+gold_hosts() {
+  printf 'codex grok pi omp\n'
+}
+
+require_host() {
+  if [[ -z "${HOST:-}" ]]; then
+    printf 'HOST is required (codex|grok|pi|omp)\n' >&2
+    exit 1
+  fi
+}
+
+host_card() {
+  case "${HOST}" in
+    codex) printf '.codex/pstack-host.md' ;;
+    grok) printf '.grok/pstack-host.md' ;;
+    pi) printf '.pi/pstack-host.md' ;;
+    omp) printf '.omp/pstack-host.md' ;;
+    *) printf 'unknown HOST %s\n' "${HOST}" >&2; exit 1 ;;
+  esac
+}
+
+host_skill() {
+  case "${HOST}" in
+    codex) printf '.agents/skills/poteto-mode/SKILL.md' ;;
+    grok) printf '.grok/skills/poteto-mode/SKILL.md' ;;
+    pi) printf '.pi/skills/poteto-mode/SKILL.md' ;;
+    omp) printf '.omp/skills/poteto-mode/SKILL.md' ;;
+    *) printf 'unknown HOST %s\n' "${HOST}" >&2; exit 1 ;;
+  esac
+}
+
+host_stub_needle() {
+  case "${HOST}" in
+    codex) printf 'read .codex/pstack-host.md' ;;
+    grok) printf 'read .grok/pstack-host.md' ;;
+    pi) printf 'read .pi/pstack-host.md' ;;
+    omp) printf 'read .omp/pstack-host.md' ;;
+    *) printf 'unknown HOST %s\n' "${HOST}" >&2; exit 1 ;;
+  esac
+}
+
 desk_dir() {
-  printf '%s/desks/inbox\n' "$(base_dir)"
+  require_host
+  printf '%s/desks/%s\n' "$(base_dir)" "$HOST"
 }
 
 evidence_dir() {
+  require_host
+  printf '%s/evidence/%s/%s\n' "$(base_dir)" "$(run_id)" "$HOST"
+}
+
+evidence_root() {
   printf '%s/evidence/%s\n' "$(base_dir)" "$(run_id)"
 }
 

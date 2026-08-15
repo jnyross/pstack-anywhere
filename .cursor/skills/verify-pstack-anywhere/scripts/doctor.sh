@@ -3,9 +3,9 @@ set -euo pipefail
 source "$(cd "$(dirname "$0")" && pwd)/common.sh"
 
 ROOT="$(repo_root)"
-EVIDENCE="$(evidence_dir)"
-mkdir -p "$EVIDENCE"
-OUT="$EVIDENCE/doctor.txt"
+EVIDENCE_ROOT="$(evidence_root)"
+mkdir -p "$EVIDENCE_ROOT"
+OUT="$EVIDENCE_ROOT/doctor.txt"
 : >"$OUT"
 
 {
@@ -14,6 +14,12 @@ OUT="$EVIDENCE/doctor.txt"
   bun --version
   command -v codex
   codex --version
+  command -v grok
+  grok --version
+  command -v pi
+  pi --version
+  command -v omp
+  omp --version
 } | tee -a "$OUT"
 
 cd "$ROOT"
@@ -25,7 +31,9 @@ fi
 
 PROBE="$("$ROOT/bin/pstack-anywhere" probe)"
 printf '%s\n' "$PROBE" | tee -a "$OUT"
-if ! printf '%s\n' "$PROBE" | grep -q $'^found\tcodex\t'; then
-  printf 'doctor: Codex is not found\n' | tee -a "$OUT"
-  exit 1
-fi
+for name in $(gold_hosts); do
+  if ! printf '%s\n' "$PROBE" | grep -q $'^found\t'"$name"$'\t'; then
+    printf 'doctor: %s is not found\n' "$name" | tee -a "$OUT"
+    exit 1
+  fi
+done

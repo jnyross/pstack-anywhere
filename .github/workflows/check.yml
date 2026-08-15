@@ -20,3 +20,5 @@ jobs:
       - run: bun src/cli.ts check
         if: hashFiles('shim/package.json') != ''
         working-directory: shim
+      - run: bun test
+        working-directory: .cursor/skills/verify-pstack-anywhere/scripts

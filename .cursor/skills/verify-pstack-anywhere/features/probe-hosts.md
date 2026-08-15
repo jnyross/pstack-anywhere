@@ -7,6 +7,8 @@ Probe prints one row per Mini binary. A row is found, missing, or unauth with a 
 - `probe-found` prints `found` and a path for a logged-in host.
 - `probe-unauth-claude` prints `unauth` when `claude -p` is org-disabled.
 - `probe-unauth-droid` prints `unauth` when `FACTORY_API_KEY` is unset.
+- `probe-unauth-pi` prints `unauth` when `pi --list-models` prints no model table.
+- `probe-unauth-omp` prints `unauth` when `~/.omp/agent/config.yml` is missing.
 
 ## How to get to it (user POV)
 
@@ -16,15 +18,15 @@ Probe prints one row per Mini binary. A row is found, missing, or unauth with a 
 
 Preconditions:
 
-- `scripts/doctor.sh` is the Codex gate. This feature can run doctor itself.
+- `scripts/doctor.sh` is the gold-compare gate. This feature can run doctor itself.
 
-- **Doctor.** Run `.cursor/skills/verify-pstack-anywhere/scripts/doctor.sh`. Exit 0. `doctor.txt` in evidence contains `found	codex`.
+- **Doctor.** Run `.cursor/skills/verify-pstack-anywhere/scripts/doctor.sh`. Exit 0. `doctor.txt` in evidence contains `found` rows for `codex`, `grok`, `pi`, and `omp`.
 - **Claude skip.** If a `claude` binary exists, the probe output contains `unauth	claude` when print is org-disabled, even if `claude auth status` says max.
 - **Droid skip.** If a `droid` binary exists and `FACTORY_API_KEY` is unset, the probe output contains `unauth	droid` and `FACTORY_API_KEY is unset`.
-- **Proof.** Keep `doctor.txt`. A missing Codex row is a stop, not a Codex pass.
+- **Proof.** Keep `doctor.txt`. A missing gold host is a stop, not a pass through another binary.
 
 ## Gotchas
 
 - `claude auth status` JSON is not the print CLI. Probe must have run `claude -p`.
 - A `found` Droid row without a key is a probe bug. Do not drive Droid.
-- Gemini is not a Mini CLI on this machine until probe says `found`.
+- Gemini is not part of gold-compare until someone adds a HostId drive for it.
