@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   cpSync,
   existsSync,
@@ -6,7 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { MODELS_LITERAL, MODELS_OWNED, type HostProfile, type Scope } from "./capability.ts";
 import { mergeStub, modelsSeed, renderCard, renderClaudeAgent, renderCodexAgent, stripStub } from "./card.ts";
 import { expand } from "./paths.ts";
@@ -44,7 +45,15 @@ function agentBody(repoRoot: string, file: string): { name: string; description:
   return { name, description, body: m[2] };
 }
 
-export function receiptPath(home: string, host: string, scope: Scope): string {
+function projectReceiptKey(repoRoot: string): string {
+  return createHash("sha256").update(resolve(repoRoot)).digest("hex").slice(0, 16);
+}
+
+export function receiptPath(home: string, host: string, scope: Scope, repoRoot?: string): string {
+  if (scope === "project") {
+    if (!repoRoot) throw new Error("project receipts require repoRoot");
+    return join(home, ".pstack", "receipts", `${host}-${scope}-${projectReceiptKey(repoRoot)}.json`);
+  }
   return join(home, ".pstack", "receipts", `${host}-${scope}.json`);
 }
 
@@ -58,12 +67,17 @@ export function install(opts: {
   const { repoRoot, home, host, scope, dryRun } = opts;
   const skillsParent = expand(scope === "user" ? host.userSkillsParent : host.projectSkillsParent, home, repoRoot);
   const cardPath = expand(scope === "user" ? host.userCard : host.projectCard, home, repoRoot);
+  const stubCardPath =
+    scope === "project" ? relative(repoRoot, cardPath).replaceAll("\\", "/") : cardPath;
   const stubTpl = scope === "user" ? host.userStub : host.projectStub;
   const stubPath = stubTpl ? expand(stubTpl, home, repoRoot) : null;
   const modelsOwned = expand(MODELS_OWNED, home, repoRoot);
   const modelsBridge = expand(MODELS_LITERAL, home, repoRoot);
   const writes: string[] = [];
   const stubs: string[] = [];
+  const prevRecFile = receiptPath(home, host.id, scope, repoRoot);
+  const prevRec =
+    existsSync(prevRecFile) ? (JSON.parse(readFileSync(prevRecFile, "utf8")) as Receipt) : null;
 
   const planned: Array<() => void> = [];
 
@@ -80,7 +94,7 @@ export function install(opts: {
     stubs.push(stubPath);
     planned.push(() => {
       const prev = existsSync(stubPath) ? readFileSync(stubPath, "utf8") : null;
-      writeFile(stubPath, mergeStub(prev, cardPath));
+      writeFile(stubPath, mergeStub(prev, stubCardPath));
     });
   }
 
@@ -138,9 +152,28 @@ export function install(opts: {
     }
   }
 
+  const writeSet = new Set(writes);
+  const stubSet = new Set(stubs);
+  if (prevRec) {
+    for (const p of prevRec.paths) {
+      if (p === prevRecFile || writeSet.has(p)) continue;
+      planned.push(() => {
+        if (existsSync(p)) rmSync(p, { recursive: true, force: true });
+      });
+    }
+    for (const stub of prevRec.stubs) {
+      if (stubSet.has(stub)) continue;
+      planned.push(() => {
+        if (!existsSync(stub)) return;
+        writeFileSync(stub, stripStub(readFileSync(stub, "utf8")));
+      });
+    }
+  }
+
   const rec: Receipt = { schema: 1, host: host.id, scope, paths: writes, stubs };
-  writes.push(receiptPath(home, host.id, scope));
-  planned.push(() => writeFile(receiptPath(home, host.id, scope), `${JSON.stringify(rec, null, 2)}\n`));
+  const recFile = receiptPath(home, host.id, scope, repoRoot);
+  writes.push(recFile);
+  planned.push(() => writeFile(recFile, `${JSON.stringify(rec, null, 2)}\n`));
 
   if (!dryRun) for (const step of planned) step();
   return { receipt: rec, writes };
@@ -151,8 +184,9 @@ export function uninstall(opts: {
   host: HostProfile;
   scope: Scope;
   dryRun: boolean;
+  repoRoot: string;
 }): string[] {
-  const recFile = receiptPath(opts.home, opts.host.id, opts.scope);
+  const recFile = receiptPath(opts.home, opts.host.id, opts.scope, opts.repoRoot);
   if (!existsSync(recFile)) return [];
   const rec = JSON.parse(readFileSync(recFile, "utf8")) as Receipt;
   const removed: string[] = [];
