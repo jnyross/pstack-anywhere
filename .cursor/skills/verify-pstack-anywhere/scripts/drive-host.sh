@@ -35,7 +35,6 @@ EOF
 
 LOG="$EVIDENCE/host.log"
 STATUS=0
-set +e
 case "$HOST" in
   codex)
     AUTH="${HOME}/.codex/auth.json"
@@ -50,6 +49,7 @@ model = "gpt-5.6-luna"
 suppress_unstable_features_warning = true
 EOF
     export CODEX_HOME="$RUNTIME"
+    set +e
     codex exec \
       -m gpt-5.6-luna \
       -C "$DESK" \
@@ -57,6 +57,7 @@ EOF
       --skip-git-repo-check \
       -- "$PROMPT" >"$LOG" 2>&1
     STATUS=$?
+    set -e
     ;;
   grok)
     AUTH="${HOME}/.grok/auth.json"
@@ -75,6 +76,7 @@ default = "grok-4.6"
 permission_mode = "always-approve"
 EOF
     export GROK_HOME="$RUNTIME"
+    set +e
     grok -p "$PROMPT" \
       --cwd "$DESK" \
       -m grok-4.6 \
@@ -84,15 +86,19 @@ EOF
       --output-format plain \
       >"$LOG" 2>&1
     STATUS=$?
+    set -e
     ;;
   pi)
+    set +e
     (
       cd "$DESK"
       pi -p --no-session --approve "$PROMPT"
     ) >"$LOG" 2>&1
     STATUS=$?
+    set -e
     ;;
   omp)
+    set +e
     omp --cwd "$DESK" \
       -p \
       --no-session \
@@ -100,13 +106,13 @@ EOF
       --model gpt-5.6-luna \
       -- "$PROMPT" >"$LOG" 2>&1
     STATUS=$?
+    set -e
     ;;
   *)
     printf 'drive-host: unknown HOST %s\n' "$HOST" >&2
     exit 1
     ;;
 esac
-set -e
 
 printf 'host_exit\t%s\n' "$STATUS" >"$EVIDENCE/host-exit.txt"
 find "$DESK" -path "$DESK/.git" -prune -o -path "$DESK/.shelf-home" -prune -o -path "$DESK/.agents" -prune -o -path "$DESK/.grok" -prune -o -path "$DESK/.pi" -prune -o -path "$DESK/.omp" -prune -o -print | sort >"$EVIDENCE/desk-tree.txt"
