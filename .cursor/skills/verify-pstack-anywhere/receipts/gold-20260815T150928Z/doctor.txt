@@ -1,0 +1,20 @@
+repo	/tmp/pstack-anywhere-stack
+/opt/homebrew/bin/bun
+1.3.14
+/opt/homebrew/bin/codex
+codex-cli 0.146.0
+/Users/littlejohn/.grok/bin/grok
+grok 1.0.3 (1a29d5bc12d4) [stable]
+/opt/homebrew/bin/pi
+0.82.1
+/opt/homebrew/bin/omp
+omp/17.2.11
+check	upstream lock ok
+found	codex	/opt/homebrew/bin/codex
+found	grok	/Users/littlejohn/.grok/bin/grok
+found	pi	/opt/homebrew/bin/pi
+found	omp	/opt/homebrew/bin/omp
+unauth	droid	/Users/littlejohn/.local/bin/droid	FACTORY_API_KEY is unset
+unauth	claude	/Users/littlejohn/.local/bin/claude	Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access
+found	cursor-agent	/Users/littlejohn/.local/bin/cursor-agent
+found	cursor-plugin-cache	/Users/littlejohn/.cursor/plugins/cache

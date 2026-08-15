@@ -1,0 +1,19 @@
+{
+  "goldHost": "codex",
+  "goldKind": "passed_gold_task",
+  "hosts": {
+    "codex": {
+      "kind": "passed_gold_task"
+    },
+    "grok": {
+      "kind": "passed_gold_task"
+    },
+    "pi": {
+      "kind": "passed_gold_task"
+    },
+    "omp": {
+      "kind": "passed_gold_task"
+    }
+  },
+  "passed": true
+}

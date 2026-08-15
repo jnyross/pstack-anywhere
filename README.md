@@ -70,3 +70,5 @@ Project install used to write into this clone. Pass a separate desk so a Mini ho
 `prepare` copies vendor `skills/` from this repo onto the desk. Receipts go under `--home` or `<desk>/.shelf-home`. `clean` removes only those paths. `--host` is required on `uninstall`, `prepare`, `observe`, and `clean`. `status` lists receipts. It does not write.
 
 `probe` marks Claude `unauth` when `claude -p` is org-disabled, even if `claude auth status` says logged in. It marks Droid `unauth` when `FACTORY_API_KEY` is unset. It marks Pi `unauth` when `pi --list-models` prints no model table. It marks Oh My Pi `unauth` when `~/.omp/agent/config.yml` is missing.
+
+To prove Codex, Grok, Pi, and Oh My Pi complete the same greet task on throwaway desks, run `.cursor/skills/verify-pstack-anywhere/scripts/run-gold.sh`.
