@@ -44,9 +44,9 @@ export function probeMini(): MiniBin[] {
     const auth = run(claude, ["auth", "status"]);
     if (/"loggedIn": true/.test(auth.out) && /"subscriptionType": "max"/.test(auth.out)) {
       rows.push({ kind: "found", name: "claude", path: claude });
-    } else if (/"loggedIn": false/.test(auth.out) || /lapsed|unauthorized/i.test(auth.out)) {
+    } else {
       rows.push({ kind: "unauth", name: "claude", path: claude, detail: auth.out.slice(0, 240) });
-    } else rows.push({ kind: "found", name: "claude", path: claude });
+    }
   }
 
   const cursorAgent = which("cursor-agent");
