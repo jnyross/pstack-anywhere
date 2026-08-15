@@ -84,11 +84,9 @@ export function install(opts: {
     });
   }
 
-  writes.push(modelsOwned);
   planned.push(() => {
     if (!existsSync(modelsOwned)) writeFile(modelsOwned, modelsSeed());
   });
-  writes.push(modelsBridge);
   planned.push(() => {
     if (!existsSync(modelsBridge)) {
       const body = existsSync(modelsOwned) ? readFileSync(modelsOwned, "utf8") : modelsSeed();
@@ -122,18 +120,21 @@ export function install(opts: {
       });
     }
     if (host.agentAliases.generalPurpose && host.agentAliases.generalPurpose !== "generalPurpose") {
-      const dest = join(agentDir, `${host.agentAliases.generalPurpose}.md`);
+      const alias = host.agentAliases.generalPurpose;
+      const dest =
+        host.agents.format === "codex-toml" ? join(agentDir, `${alias}.toml`) : join(agentDir, `${alias}.md`);
+      const description = "Generic worker for pstack panel skills that ask for generalPurpose.";
+      const body =
+        "You are a general-purpose subagent. Follow the parent brief. Do not skip poteto-mode when the parent says to use it.";
       writes.push(dest);
-      planned.push(() =>
-        writeFile(
-          dest,
-          renderClaudeAgent(
-            host.agentAliases.generalPurpose,
-            "Generic worker for pstack panel skills that ask for generalPurpose.",
-            "You are a general-purpose subagent. Follow the parent brief. Do not skip poteto-mode when the parent says to use it.",
-          ),
-        ),
-      );
+      planned.push(() => {
+        if (host.agents.kind !== "files") return;
+        if (host.agents.format === "codex-toml") {
+          writeFile(dest, renderCodexAgent(alias, description, body));
+        } else {
+          writeFile(dest, renderClaudeAgent(alias, description, body));
+        }
+      });
     }
   }
 
