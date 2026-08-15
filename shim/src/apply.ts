@@ -63,19 +63,21 @@ export function install(opts: {
   host: HostProfile;
   scope: Scope;
   dryRun: boolean;
+  attachRoot?: string;
 }): { receipt: Receipt; writes: string[] } {
   const { repoRoot, home, host, scope, dryRun } = opts;
-  const skillsParent = expand(scope === "user" ? host.userSkillsParent : host.projectSkillsParent, home, repoRoot);
-  const cardPath = expand(scope === "user" ? host.userCard : host.projectCard, home, repoRoot);
+  const attachRoot = opts.attachRoot ?? repoRoot;
+  const skillsParent = expand(scope === "user" ? host.userSkillsParent : host.projectSkillsParent, home, attachRoot);
+  const cardPath = expand(scope === "user" ? host.userCard : host.projectCard, home, attachRoot);
   const stubCardPath =
-    scope === "project" ? relative(repoRoot, cardPath).replaceAll("\\", "/") : cardPath;
+    scope === "project" ? relative(attachRoot, cardPath).replaceAll("\\", "/") : cardPath;
   const stubTpl = scope === "user" ? host.userStub : host.projectStub;
-  const stubPath = stubTpl ? expand(stubTpl, home, repoRoot) : null;
-  const modelsOwned = expand(MODELS_OWNED, home, repoRoot);
-  const modelsBridge = expand(MODELS_LITERAL, home, repoRoot);
+  const stubPath = stubTpl ? expand(stubTpl, home, attachRoot) : null;
+  const modelsOwned = expand(MODELS_OWNED, home, attachRoot);
+  const modelsBridge = expand(MODELS_LITERAL, home, attachRoot);
   const writes: string[] = [];
   const stubs: string[] = [];
-  const prevRecFile = receiptPath(home, host.id, scope, repoRoot);
+  const prevRecFile = receiptPath(home, host.id, scope, attachRoot);
   const prevRec =
     existsSync(prevRecFile) ? (JSON.parse(readFileSync(prevRecFile, "utf8")) as Receipt) : null;
 
@@ -109,7 +111,7 @@ export function install(opts: {
   });
 
   if (host.agents.kind === "files") {
-    const agentDir = expand(scope === "user" ? host.agents.userDir : host.agents.projectDir, home, repoRoot);
+    const agentDir = expand(scope === "user" ? host.agents.userDir : host.agents.projectDir, home, attachRoot);
     const specs = [
       { file: "poteto-agent.md", logical: "poteto-agent" },
       { file: "comment-sicko.md", logical: "Comment Sicko" },
@@ -171,7 +173,7 @@ export function install(opts: {
   }
 
   const rec: Receipt = { schema: 1, host: host.id, scope, paths: writes, stubs };
-  const recFile = receiptPath(home, host.id, scope, repoRoot);
+  const recFile = receiptPath(home, host.id, scope, attachRoot);
   writes.push(recFile);
   planned.push(() => writeFile(recFile, `${JSON.stringify(rec, null, 2)}\n`));
 

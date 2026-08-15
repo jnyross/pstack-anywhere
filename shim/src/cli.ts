@@ -1,11 +1,13 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { install, receiptPath, uninstall } from "./apply.ts";
 import { capabilityTiers, type Scope } from "./capability.ts";
 import { cursorPluginJson } from "./card.ts";
 import { hostById, hosts, validateProfile } from "./hosts.ts";
+import { clean, observe, prepare } from "./lifecycle.ts";
 import { defaultHome } from "./paths.ts";
+import { probeMini } from "./probe.ts";
 import { syncVendor } from "./sync.ts";
 import { vendorDrift } from "./vendor.ts";
 
@@ -23,6 +25,10 @@ function usage(): string {
   doctor --host <id>
   status
   emit-plugin
+  probe
+  prepare --host <id> --desk <dir> [--home <dir>]
+  observe --host <id> --desk <dir> [--home <dir>]
+  clean --host <id> --desk <dir> [--home <dir>]
 `;
 }
 
@@ -125,6 +131,65 @@ function cmdStatus(root: string): number {
   return 0;
 }
 
+function cmdProbe(): number {
+  for (const row of probeMini()) {
+    if (row.kind === "found") console.log(`found\t${row.name}\t${row.path}`);
+    else if (row.kind === "missing") console.log(`missing\t${row.name}`);
+    else console.log(`unauth\t${row.name}\t${row.path}\t${row.detail}`);
+  }
+  return 0;
+}
+
+function cmdPrepare(root: string, args: string[]): number {
+  const host = arg(args, "--host") ?? "";
+  const desk = arg(args, "--desk");
+  if (!desk) throw new Error("prepare requires --desk");
+  const home = arg(args, "--home") ?? process.env.PSTACK_HOME ?? join(desk, ".shelf-home");
+  mkdirSync(desk, { recursive: true });
+  const notes = join(desk, "NOTES.md");
+  if (!existsSync(notes)) writeFileSync(notes, "# Notes\n\nEmpty desk.\n");
+  const run = prepare({
+    repoRoot: root,
+    home,
+    host: hostById(host).id,
+    attachRoot: desk,
+    scope: "project",
+  });
+  console.log(JSON.stringify(run, null, 2));
+  return run.kind === "installed" ? 0 : 1;
+}
+
+function cmdObserve(args: string[]): number {
+  const host = arg(args, "--host") ?? "";
+  const desk = arg(args, "--desk");
+  if (!desk) throw new Error("observe requires --desk");
+  const home = arg(args, "--home") ?? process.env.PSTACK_HOME ?? join(desk, ".shelf-home");
+  const run = observe({
+    home,
+    host: hostById(host).id,
+    attachRoot: desk,
+    scope: "project",
+  });
+  console.log(JSON.stringify(run, null, 2));
+  return run.kind === "observed" && run.cardExists ? 0 : 1;
+}
+
+function cmdClean(root: string, args: string[]): number {
+  const host = arg(args, "--host") ?? "";
+  const desk = arg(args, "--desk");
+  if (!desk) throw new Error("clean requires --desk");
+  const home = arg(args, "--home") ?? process.env.PSTACK_HOME ?? join(desk, ".shelf-home");
+  const run = clean({
+    repoRoot: root,
+    home,
+    host: hostById(host).id,
+    attachRoot: desk,
+    scope: "project",
+  });
+  console.log(JSON.stringify(run, null, 2));
+  return 0;
+}
+
 function main(argv: string[]): number {
   const root = repoRoot();
   const [cmd, ...args] = argv;
@@ -138,6 +203,10 @@ function main(argv: string[]): number {
   if (cmd === "sync") return cmdSync(root, args);
   if (cmd === "doctor") return cmdDoctor(args);
   if (cmd === "status") return cmdStatus(root);
+  if (cmd === "probe") return cmdProbe();
+  if (cmd === "prepare") return cmdPrepare(root, args);
+  if (cmd === "observe") return cmdObserve(args);
+  if (cmd === "clean") return cmdClean(root, args);
   if (cmd === "emit-plugin") {
     process.stdout.write(cursorPluginJson());
     return 0;

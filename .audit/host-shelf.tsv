@@ -1,0 +1,10 @@
+ts	phase	decision	why	evidence	result
+2026-08-15T12:00:00Z	frame	done means each Mini host works or fails with evidence, not a silent skip	prove it on the real CLIs, inconclusive is not a pass	predicate in PR 6 body	framed
+2026-08-15T12:05:00Z	design	split attachRoot lifecycle from README, skip a second design bakeoff	shape was already a state machine plus a scenario table	shim/src/lifecycle.ts	harness before docs
+2026-08-15T12:14:16Z	harness	attach vendor skills onto --desk, keep the clone as vendor root	Mini hosts must not dirty the pstack-anywhere tree	https://github.com/jnyross/pstack-anywhere/pull/6	VERIFIED bun test 16 then 20
+2026-08-15T12:16:00Z	eval	organic NOTES.md prompt on sanitized /tmp/notes-shelf desks	candidates must not see eval words	shim/src/lifecycle.ts scenarios	ran
+2026-08-15T12:17:00Z	eval	Codex, Grok, cursor-agent wrote NOTES.md without opening pstack-host	tiny prompt did not force skill load	/tmp/notes-shelf/logs	did_task_only, skill-load INCONCLUSIVE
+2026-08-15T12:17:20Z	eval	skip Claude print CLI and Droid exec	org-disabled subscription, missing FACTORY_API_KEY	claude -p, droid exec	skip with evidence
+2026-08-15T12:17:34Z	docs	README for probe prepare observe clean on a stacked PR	docs after the commands exist	https://github.com/jnyross/pstack-anywhere/pull/7	STACK-READY later
+2026-08-15T13:19:20Z	probe	stop requiring subscriptionType max	this Mini is max JSON and still org-disabled on -p	commit 2230426	NOT VERIFIED against print CLI
+2026-08-15T12:25:25Z	probe	classify Claude from -p --max-turns 0, Droid from FACTORY_API_KEY	auth status said max while print was org-disabled; droid binary is not a login	./bin/pstack-anywhere probe	VERIFIED unauth claude and droid on Mini
