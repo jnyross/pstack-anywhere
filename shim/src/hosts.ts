@@ -210,7 +210,7 @@ function ompCaps(): CapabilityTable {
     "subagent.spawn": { kind: "native", howTo: "Use omp task / agents." },
     "subagent.customDefs": {
       kind: "native",
-      howTo: "Use .omp/agents/*.md after unpack. Comment Sicko stays Comment Sicko.",
+      howTo: "Use ~/.omp/agent/agents/*.md (user) or .omp/agents/*.md (project) after unpack. Comment Sicko stays Comment Sicko.",
     },
     slashCommands: { kind: "native", howTo: "/skill:poteto-mode after omp skill discovery." },
   };
