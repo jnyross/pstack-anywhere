@@ -46,7 +46,7 @@ Codex model is `gpt-5.6-luna`. Do not use Sol. Drive with an isolated `CODEX_HOM
 
 ## Evidence
 
-Proof directory is `/tmp/pstack-verify/evidence/<run-id>/`. It must still exist after cleanup.
+Proof directory is `/tmp/pstack-verify/evidence/<run-id>/`. It must still exist after cleanup. A Mini receipt of a passing Codex grade is committed at [receipts/codex-20260815T130438Z.json](receipts/codex-20260815T130438Z.json).
 
 Required artifacts:
 
