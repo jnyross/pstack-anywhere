@@ -72,7 +72,7 @@ function cmdUninstall(root: string, args: string[]): number {
   const scope = parseScope(arg(args, "--scope", "user"));
   const dryRun = has(args, "--dry-run");
   const home = process.env.PSTACK_HOME ?? defaultHome();
-  const removed = uninstall({ home, host, scope, dryRun });
+  const removed = uninstall({ home, host, scope, dryRun, repoRoot: root });
   console.log(`${dryRun ? "would remove" : "removed"} ${removed.length} paths`);
   return 0;
 }
@@ -114,11 +114,11 @@ function cmdDoctor(args: string[]): number {
   return 0;
 }
 
-function cmdStatus(): number {
+function cmdStatus(root: string): number {
   const home = process.env.PSTACK_HOME ?? defaultHome();
   for (const host of hosts) {
     for (const scope of ["user", "project"] as const) {
-      const p = receiptPath(home, host.id, scope);
+      const p = receiptPath(home, host.id, scope, root);
       if (existsSync(p)) console.log(`installed\t${host.id}\t${scope}\t${p}`);
     }
   }
@@ -137,7 +137,7 @@ function main(argv: string[]): number {
   if (cmd === "uninstall") return cmdUninstall(root, args);
   if (cmd === "sync") return cmdSync(root, args);
   if (cmd === "doctor") return cmdDoctor(args);
-  if (cmd === "status") return cmdStatus();
+  if (cmd === "status") return cmdStatus(root);
   if (cmd === "emit-plugin") {
     process.stdout.write(cursorPluginJson());
     return 0;
