@@ -1,0 +1,10 @@
+{
+  "name": "pstack-anywhere-shim",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pstack": "bun src/cli.ts",
+    "test": "bun test",
+    "check": "bun src/cli.ts check"
+  }
+}
