@@ -1,0 +1,10 @@
+{
+  "kind": "used_installed_instructions",
+  "hits": [
+    "pstack-host.md",
+    "poteto-mode/SKILL.md",
+    "skills/poteto-mode"
+  ],
+  "greet": true,
+  "logBytes": 201919
+}

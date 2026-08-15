@@ -8,3 +8,5 @@ ts	phase	decision	why	evidence	result
 2026-08-15T12:17:34Z	docs	README for probe prepare observe clean on a stacked PR	docs after the commands exist	https://github.com/jnyross/pstack-anywhere/pull/7	STACK-READY later
 2026-08-15T13:19:20Z	probe	stop requiring subscriptionType max	this Mini is max JSON and still org-disabled on -p	commit 2230426	NOT VERIFIED against print CLI
 2026-08-15T12:25:25Z	probe	classify Claude from -p --max-turns 0, Droid from FACTORY_API_KEY	auth status said max while print was org-disabled; droid binary is not a login	./bin/pstack-anywhere probe	VERIFIED unauth claude and droid on Mini
+2026-08-15T13:04:29Z	verify	wrote verify-pstack-anywhere skill and helpers	create-verification-skill plus isolated Codex home	.cursor/skills/verify-pstack-anywhere/	skill drafted, Codex not yet driven
+2026-08-15T13:09:08Z	verify	isolated Codex exec read pstack-host.md and poteto-mode SKILL.md then wrote greet.ts	user config drowned project skills on the first NOTES.md run	/tmp/pstack-verify/evidence/20260815T130438Z/grade.json	VERIFIED used_installed_instructions

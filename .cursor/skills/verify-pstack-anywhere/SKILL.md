@@ -81,3 +81,7 @@ All helpers are executable. Run them from the pstack-anywhere repo root.
 - `scripts/drive-codex.sh` isolated Codex exec
 - `scripts/grade-codex.ts` transcript grade
 - `scripts/cleanup.sh` desk and runtime teardown
+
+## Maintain the map
+
+When probe, prepare, or Codex flags change, run `/maintain-verification-skill` and update the matching feature file. Do not leave a helper that the map no longer describes.
