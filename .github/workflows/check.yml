@@ -8,10 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate lock
+        run: python3 -c "import json; json.load(open('.upstream.json'))"
       - uses: oven-sh/setup-bun@v2
+        if: hashFiles('shim/package.json') != ''
         with:
           bun-version: 1.3.14
       - run: bun test
+        if: hashFiles('shim/package.json') != ''
         working-directory: shim
       - run: bun src/cli.ts check
+        if: hashFiles('shim/package.json') != ''
         working-directory: shim
