@@ -88,7 +88,7 @@ EOF
   pi)
     (
       cd "$DESK"
-      pi -p --no-session --approve -- "$PROMPT"
+      pi -p --no-session --approve "$PROMPT"
     ) >"$LOG" 2>&1
     STATUS=$?
     ;;
