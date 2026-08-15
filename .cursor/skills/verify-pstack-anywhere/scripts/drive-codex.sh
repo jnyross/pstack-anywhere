@@ -51,6 +51,7 @@ set -e
 printf 'codex_exit\t%s\n' "$STATUS" >"$EVIDENCE/codex-exit.txt"
 
 find "$DESK" -path "$DESK/.git" -prune -o -path "$DESK/.shelf-home" -prune -o -path "$DESK/.agents" -prune -o -print | sort >"$EVIDENCE/desk-tree.txt"
+rm -f "$EVIDENCE/greet.ts"
 if [[ -f "$DESK/src/greet.ts" ]]; then
   cp "$DESK/src/greet.ts" "$EVIDENCE/greet.ts"
 fi
