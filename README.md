@@ -55,3 +55,16 @@ Uninstall reads the receipt under `$PSTACK_HOME/.pstack/receipts/` and removes o
 ```
 
 `doctor` prints each capability as native, emulated, or absent. Absent rows point at a catalog note under `shim/catalog/degrades/`.
+
+## Attach onto a throwaway desk
+
+Project install used to write into this clone. Pass a separate desk so a Mini host can open that folder without dirtying `pstack-anywhere`.
+
+```bash
+./bin/pstack-anywhere probe
+./bin/pstack-anywhere prepare --host codex --desk /tmp/notes-shelf/inbox
+./bin/pstack-anywhere observe --host codex --desk /tmp/notes-shelf/inbox
+./bin/pstack-anywhere clean --host codex --desk /tmp/notes-shelf/inbox
+```
+
+`prepare` copies vendor `skills/` from this repo onto the desk. Receipts go under `--home` or `<desk>/.shelf-home`. `clean` removes only those paths. `--host` is required on `uninstall`, `prepare`, `observe`, and `clean`. `status` lists receipts. It does not write.
