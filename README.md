@@ -1,6 +1,6 @@
 # pstack-anywhere
 
-Install pstack skills on Cursor, Claude Code, Codex CLI, or Gemini CLI without rewriting skill bodies. `skills/` and `agents/` stay byte-identical to [upstream pstack](https://github.com/cursor/plugins/tree/main/pstack). Host translation lives in a generated card.
+Install pstack skills on Cursor, Claude Code, Codex CLI, Gemini CLI, Grok CLI, Pi, or Oh My Pi without rewriting skill bodies. `skills/` and `agents/` stay byte-identical to [upstream pstack](https://github.com/cursor/plugins/tree/main/pstack). Host translation lives in a generated card.
 
 You need [Bun](https://bun.sh).
 
@@ -14,7 +14,7 @@ cd pstack-anywhere
 ./bin/pstack-anywhere install --host cursor
 ```
 
-`--host` is `cursor`, `claude-code`, `codex`, or `gemini`. The default scope is `user`. To write into the current repo instead, pass `--scope project`.
+`--host` is `cursor`, `claude-code`, `codex`, `gemini`, `grok`, `pi`, or `omp`. The default scope is `user`. To write into the current repo instead, pass `--scope project`. Droid is not a host.
 
 To preview writes, add `--dry-run`.
 
@@ -69,4 +69,4 @@ Project install used to write into this clone. Pass a separate desk so a Mini ho
 
 `prepare` copies vendor `skills/` from this repo onto the desk. Receipts go under `--home` or `<desk>/.shelf-home`. `clean` removes only those paths. `--host` is required on `uninstall`, `prepare`, `observe`, and `clean`. `status` lists receipts. It does not write.
 
-`probe` marks Claude `unauth` when `claude -p` is org-disabled, even if `claude auth status` says logged in. It marks Droid `unauth` when `FACTORY_API_KEY` is unset.
+`probe` marks Claude `unauth` when `claude -p` is org-disabled, even if `claude auth status` says logged in. It marks Droid `unauth` when `FACTORY_API_KEY` is unset. It marks Pi `unauth` when `pi --list-models` prints no model table. It marks Oh My Pi `unauth` when `~/.omp/agent/config.yml` is missing.

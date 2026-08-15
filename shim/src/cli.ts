@@ -19,7 +19,7 @@ function usage(): string {
   return `pstack-anywhere <command>
 
   check
-  install --host <cursor|claude-code|codex|gemini> [--scope user|project] [--dry-run]
+  install --host <cursor|claude-code|codex|gemini|grok|pi|omp> [--scope user|project] [--dry-run]
   uninstall --host <id> [--scope user|project] [--dry-run]
   sync [--ref <git-ref>] [--dry-run]
   doctor --host <id>

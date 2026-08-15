@@ -174,6 +174,48 @@ function geminiCaps(): CapabilityTable {
   };
 }
 
+function grokCaps(): CapabilityTable {
+  return {
+    ...claudeCaps(),
+    "subagent.spawn": { kind: "native", howTo: "Spawn a Grok subagent." },
+    "subagent.customDefs": {
+      kind: "native",
+      howTo: "Use .grok/agents/*.md. Comment Sicko stays Comment Sicko.",
+    },
+    slashCommands: { kind: "native", howTo: "/poteto-mode after Grok skill discovery." },
+  };
+}
+
+function piCaps(): CapabilityTable {
+  return {
+    ...claudeCaps(),
+    "subagent.spawn": {
+      kind: "emulated",
+      howTo: "Use the pi-subagents extension when it is installed.",
+      cost: "No Task tool. Spawn is host-specific.",
+    },
+    "subagent.customDefs": {
+      kind: "absent",
+      instead: "Read agents/*.md from the card. Put their bodies in the spawn prompt.",
+      affects: ["skills/poteto-mode/SKILL.md", "skills/no-comments/SKILL.md"],
+      catalog: "no-custom-agents",
+    },
+    slashCommands: { kind: "emulated", howTo: "Invoke /skill:poteto-mode.", cost: "Slash UX differs." },
+  };
+}
+
+function ompCaps(): CapabilityTable {
+  return {
+    ...piCaps(),
+    "subagent.spawn": { kind: "native", howTo: "Use omp task / agents." },
+    "subagent.customDefs": {
+      kind: "native",
+      howTo: "Use ~/.omp/agent/agents/*.md (user) or .omp/agents/*.md (project) after unpack. Comment Sicko stays Comment Sicko.",
+    },
+    slashCommands: { kind: "native", howTo: "/skill:poteto-mode after omp skill discovery." },
+  };
+}
+
 export const hosts: readonly HostProfile[] = [
   {
     id: "cursor",
@@ -261,6 +303,70 @@ export const hosts: readonly HostProfile[] = [
       generalPurpose: "generalPurpose",
     },
     capabilities: geminiCaps(),
+  },
+  {
+    id: "grok",
+    displayName: "Grok CLI",
+    attach: "copy",
+    userSkillsParent: "~/.grok/skills",
+    projectSkillsParent: "{repo}/.grok/skills",
+    userCard: "~/.grok/pstack-host.md",
+    projectCard: "{repo}/.grok/pstack-host.md",
+    userStub: "~/.grok/AGENTS.md",
+    projectStub: "{repo}/AGENTS.md",
+    agents: {
+      kind: "files",
+      format: "verbatim-md",
+      userDir: "~/.grok/agents",
+      projectDir: "{repo}/.grok/agents",
+    },
+    agentAliases: {
+      "poteto-agent": "poteto-agent",
+      "Comment Sicko": "Comment Sicko",
+      generalPurpose: "general-purpose",
+    },
+    capabilities: grokCaps(),
+  },
+  {
+    id: "pi",
+    displayName: "Pi",
+    attach: "copy",
+    userSkillsParent: "~/.pi/agent/skills",
+    projectSkillsParent: "{repo}/.pi/skills",
+    userCard: "~/.pi/agent/pstack-host.md",
+    projectCard: "{repo}/.pi/pstack-host.md",
+    userStub: "~/.pi/agent/AGENTS.md",
+    projectStub: "{repo}/AGENTS.md",
+    agents: { kind: "none", instead: "Bundle agent bodies in the card. Pi loads subagents via extensions." },
+    agentAliases: {
+      "poteto-agent": "poteto-agent",
+      "Comment Sicko": "Comment Sicko",
+      generalPurpose: "generalPurpose",
+    },
+    capabilities: piCaps(),
+  },
+  {
+    id: "omp",
+    displayName: "Oh My Pi",
+    attach: "copy",
+    userSkillsParent: "~/.omp/agent/skills",
+    projectSkillsParent: "{repo}/.omp/skills",
+    userCard: "~/.omp/pstack-host.md",
+    projectCard: "{repo}/.omp/pstack-host.md",
+    userStub: "~/.omp/agent/AGENTS.md",
+    projectStub: "{repo}/AGENTS.md",
+    agents: {
+      kind: "files",
+      format: "verbatim-md",
+      userDir: "~/.omp/agent/agents",
+      projectDir: "{repo}/.omp/agents",
+    },
+    agentAliases: {
+      "poteto-agent": "poteto-agent",
+      "Comment Sicko": "Comment Sicko",
+      generalPurpose: "general-purpose",
+    },
+    capabilities: ompCaps(),
   },
 ];
 

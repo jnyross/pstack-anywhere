@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { claudeRow, droidRow } from "./probe.ts";
+import { claudeRow, droidRow, ompRow, piRow } from "./probe.ts";
 
 const maxAuth = `{
   "loggedIn": true,
@@ -34,5 +34,33 @@ test("droid with FACTORY_API_KEY is found", () => {
     kind: "found",
     name: "droid",
     path: "/bin/droid",
+  });
+});
+
+test("pi list-models table is found", () => {
+  const out = `provider  model              context  max-out  thinking  images
+zai       glm-5.2            1M       131.1K   yes       no`;
+  expect(piRow("/bin/pi", out)).toEqual({ kind: "found", name: "pi", path: "/bin/pi" });
+});
+
+test("pi without models is unauth", () => {
+  const row = piRow("/bin/pi", "Error: not authenticated");
+  expect(row.kind).toBe("unauth");
+  if (row.kind !== "unauth") return;
+  expect(row.detail).toMatch(/not authenticated/i);
+});
+
+test("omp without config is unauth", () => {
+  const row = ompRow("/bin/omp", undefined);
+  expect(row.kind).toBe("unauth");
+  if (row.kind !== "unauth") return;
+  expect(row.detail).toBe("missing ~/.omp/agent/config.yml");
+});
+
+test("omp with config is found", () => {
+  expect(ompRow("/bin/omp", "/tmp/omp/config.yml")).toEqual({
+    kind: "found",
+    name: "omp",
+    path: "/bin/omp",
   });
 });
