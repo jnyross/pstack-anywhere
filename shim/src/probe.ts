@@ -38,6 +38,30 @@ export function droidRow(path: string, factoryKey: string | undefined): MiniBin 
   return { kind: "found", name: "droid", path };
 }
 
+export function piRow(path: string, listOut: string): MiniBin {
+  if (/provider\s+model/i.test(listOut) || /^\s*\S+\s+\S+\s+\d/m.test(listOut)) {
+    return { kind: "found", name: "pi", path };
+  }
+  return {
+    kind: "unauth",
+    name: "pi",
+    path,
+    detail: listOut.slice(0, 240) || "pi --list-models produced no models",
+  };
+}
+
+export function ompRow(path: string, configPath: string | undefined): MiniBin {
+  if (!configPath) {
+    return {
+      kind: "unauth",
+      name: "omp",
+      path,
+      detail: "missing ~/.omp/agent/config.yml",
+    };
+  }
+  return { kind: "found", name: "omp", path };
+}
+
 export function probeMini(): MiniBin[] {
   const rows: MiniBin[] = [];
 
@@ -56,6 +80,17 @@ export function probeMini(): MiniBin[] {
     if (/not authenticated/i.test(auth.out)) {
       rows.push({ kind: "unauth", name: "grok", path: grok, detail: "grok models: You are not authenticated." });
     } else rows.push({ kind: "found", name: "grok", path: grok });
+  }
+
+  const pi = which("pi");
+  if (!pi) rows.push({ kind: "missing", name: "pi" });
+  else rows.push(piRow(pi, run(pi, ["--list-models"]).out));
+
+  const omp = which("omp");
+  if (!omp) rows.push({ kind: "missing", name: "omp" });
+  else {
+    const ompConfig = process.env.HOME ? `${process.env.HOME}/.omp/agent/config.yml` : "";
+    rows.push(ompRow(omp, existsSync(ompConfig) ? ompConfig : undefined));
   }
 
   const droid = which("droid");

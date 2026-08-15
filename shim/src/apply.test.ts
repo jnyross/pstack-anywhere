@@ -73,6 +73,36 @@ test("codex writes toml agents", () => {
   uninstall({ home: h, host, scope: "user", dryRun: false, repoRoot });
 });
 
+test("grok install writes skills, card, and markdown agents", () => {
+  const h = home();
+  const host = hostById("grok");
+  install({ repoRoot, home: h, host, scope: "user", dryRun: false });
+  expect(existsSync(join(h, ".grok/skills/poteto-mode/SKILL.md"))).toBe(true);
+  expect(existsSync(join(h, ".grok/pstack-host.md"))).toBe(true);
+  expect(existsSync(join(h, ".grok/agents/poteto-agent.md"))).toBe(true);
+  uninstall({ home: h, host, scope: "user", dryRun: false, repoRoot });
+});
+
+test("pi install writes skills and no agent files", () => {
+  const h = home();
+  const host = hostById("pi");
+  const { writes } = install({ repoRoot, home: h, host, scope: "user", dryRun: false });
+  expect(existsSync(join(h, ".pi/agent/skills/poteto-mode/SKILL.md"))).toBe(true);
+  expect(existsSync(join(h, ".pi/agent/pstack-host.md"))).toBe(true);
+  expect(writes.some((p) => p.includes("/agents/"))).toBe(false);
+  uninstall({ home: h, host, scope: "user", dryRun: false, repoRoot });
+});
+
+test("omp install writes skills and markdown agents", () => {
+  const h = home();
+  const host = hostById("omp");
+  install({ repoRoot, home: h, host, scope: "user", dryRun: false });
+  expect(existsSync(join(h, ".omp/agent/skills/poteto-mode/SKILL.md"))).toBe(true);
+  expect(existsSync(join(h, ".omp/pstack-host.md"))).toBe(true);
+  expect(existsSync(join(h, ".omp/agent/agents/poteto-agent.md"))).toBe(true);
+  uninstall({ home: h, host, scope: "user", dryRun: false, repoRoot });
+});
+
 test("dry-run writes nothing", () => {
   const h = home();
   install({ repoRoot, home: h, host: hostById("gemini"), scope: "user", dryRun: true });

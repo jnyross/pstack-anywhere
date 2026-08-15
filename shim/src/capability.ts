@@ -71,7 +71,7 @@ export type Binding =
 
 export type CapabilityTable = Readonly<Record<Capability, Binding>>;
 
-export type HostId = "cursor" | "claude-code" | "codex" | "gemini";
+export type HostId = "cursor" | "claude-code" | "codex" | "gemini" | "grok" | "pi" | "omp";
 export type Scope = "user" | "project";
 export type Attach = "copy" | "symlink-tree";
 export type AgentFormat = "verbatim-md" | "claude-md" | "codex-toml";
