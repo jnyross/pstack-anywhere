@@ -42,10 +42,17 @@ export function probeMini(): MiniBin[] {
   if (!claude) rows.push({ kind: "missing", name: "claude" });
   else {
     const auth = run(claude, ["auth", "status"]);
-    if (/"loggedIn": true/.test(auth.out) && /"subscriptionType": "max"/.test(auth.out)) {
+    const loggedIn = /"loggedIn": true/.test(auth.out);
+    const disabled = /disabled Claude subscription/i.test(auth.out);
+    if (loggedIn && !disabled) {
       rows.push({ kind: "found", name: "claude", path: claude });
     } else {
-      rows.push({ kind: "unauth", name: "claude", path: claude, detail: auth.out.slice(0, 240) });
+      rows.push({
+        kind: "unauth",
+        name: "claude",
+        path: claude,
+        detail: auth.out.slice(0, 240) || "claude auth status failed",
+      });
     }
   }
 
