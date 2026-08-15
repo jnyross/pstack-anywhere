@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { install, receiptPath, uninstall } from "./apply.ts";
@@ -94,4 +94,31 @@ test("project install keeps another worktree intact", () => {
   uninstall({ home: h, host, scope: "project", dryRun: false, repoRoot: treeB });
   expect(existsSync(skillA)).toBe(true);
   expect(existsSync(join(treeB, ".claude/skills/poteto-mode/SKILL.md"))).toBe(false);
+});
+
+test("reinstall removes paths a prior receipt still owned", () => {
+  const h = home();
+  const host = hostById("claude-code");
+  install({ repoRoot, home: h, host, scope: "user", dryRun: false });
+  const leftover = join(h, ".claude/skills/retired-skill");
+  mkdirSync(leftover, { recursive: true });
+  writeFileSync(join(leftover, "SKILL.md"), "gone\n");
+  const recFile = join(h, ".pstack/receipts/claude-code-user.json");
+  const rec = JSON.parse(readFileSync(recFile, "utf8")) as { paths: string[] };
+  rec.paths.push(leftover);
+  writeFileSync(recFile, `${JSON.stringify(rec, null, 2)}\n`);
+  install({ repoRoot, home: h, host, scope: "user", dryRun: false });
+  expect(existsSync(leftover)).toBe(false);
+  uninstall({ home: h, host, scope: "user", dryRun: false, repoRoot });
+});
+
+test("project stub points at a repo-relative card", () => {
+  const h = home();
+  const tmpRepo = fakeRepo();
+  const host = hostById("claude-code");
+  install({ repoRoot: tmpRepo, home: h, host, scope: "project", dryRun: false });
+  const stub = readFileSync(join(tmpRepo, "CLAUDE.md"), "utf8");
+  expect(stub).toContain("read .claude/pstack-host.md");
+  expect(stub.includes(tmpRepo)).toBe(false);
+  uninstall({ home: h, host, scope: "project", dryRun: false, repoRoot: tmpRepo });
 });
