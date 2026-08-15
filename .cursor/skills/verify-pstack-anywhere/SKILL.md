@@ -52,7 +52,7 @@ Codex model is `gpt-5.6-luna`. Grok model is `grok-4.6`. Oh My Pi model is `gpt-
 
 ## Evidence
 
-Proof directory is `/tmp/pstack-verify/evidence/<run-id>/`. It must still exist after cleanup. Each host writes `<run-id>/<host>/`. Compare output is `<run-id>/compare.json`.
+Proof directory is `/tmp/pstack-verify/evidence/<run-id>/`. It must still exist after cleanup. Each host writes `<run-id>/<host>/`. Compare output is `<run-id>/compare.json`. A Mini receipt of a passing gold-compare is committed at [receipts/gold-20260815T150928Z/compare.json](receipts/gold-20260815T150928Z/compare.json).
 
 Required artifacts:
 

@@ -1,0 +1,8 @@
+{
+  "host": "omp",
+  "kind": "passed_gold_task",
+  "greet": true,
+  "greetAda": "Hello, Ada",
+  "bunTestExit": 0,
+  "logBytes": 209
+}
