@@ -36,6 +36,7 @@ Preconditions:
 - A Codex run that loads `~/.codex/config.toml` will drown project skills. Isolated `CODEX_HOME` is required.
 - A Grok run that loads `~/.grok/config.toml` can pin `grok-4.5`. Isolated `GROK_HOME` pins `grok-4.6`.
 - Pi project skills need `--approve`. `-p` does not prompt.
+- Pi print mode rejects `--`. Pass the prompt as a quoted positional argument.
 - Oh My Pi needs `--approval-mode=yolo` in print mode.
 - Do not name the desk `eval`, `test`, `judge`, or `candidate`.
 - Droid is not in this loop.
