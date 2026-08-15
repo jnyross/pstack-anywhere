@@ -47,7 +47,7 @@ export function vendorDrift(repoRoot: string): Drift[] {
     const files: string[] = [];
     walk(root, files);
     for (const abs of files) {
-      const rel = relative(repoRoot, abs);
+      const rel = relative(repoRoot, abs).replaceAll("\\", "/");
       seen.add(rel);
       const exp = expected.get(rel);
       if (!exp) {
@@ -77,7 +77,7 @@ export function listVendorFiles(repoRoot: string): LockFile["files"] {
     const found: string[] = [];
     walk(root, found);
     for (const abs of found) {
-      const rel = relative(repoRoot, abs);
+      const rel = relative(repoRoot, abs).replaceAll("\\", "/");
       const buf = readFileSync(abs);
       files.push({ path: rel, sha256: hashFile(abs), bytes: buf.byteLength });
     }

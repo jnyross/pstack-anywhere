@@ -6,7 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { MODELS_LITERAL, MODELS_OWNED, type HostProfile, type Scope } from "./capability.ts";
 import { mergeStub, modelsSeed, renderCard, renderClaudeAgent, renderCodexAgent, stripStub } from "./card.ts";
 import { expand } from "./paths.ts";
@@ -58,12 +58,17 @@ export function install(opts: {
   const { repoRoot, home, host, scope, dryRun } = opts;
   const skillsParent = expand(scope === "user" ? host.userSkillsParent : host.projectSkillsParent, home, repoRoot);
   const cardPath = expand(scope === "user" ? host.userCard : host.projectCard, home, repoRoot);
+  const stubCardPath =
+    scope === "project" ? relative(repoRoot, cardPath).replaceAll("\\", "/") : cardPath;
   const stubTpl = scope === "user" ? host.userStub : host.projectStub;
   const stubPath = stubTpl ? expand(stubTpl, home, repoRoot) : null;
   const modelsOwned = expand(MODELS_OWNED, home, repoRoot);
   const modelsBridge = expand(MODELS_LITERAL, home, repoRoot);
   const writes: string[] = [];
   const stubs: string[] = [];
+  const prevRecFile = receiptPath(home, host.id, scope);
+  const prevRec =
+    existsSync(prevRecFile) ? (JSON.parse(readFileSync(prevRecFile, "utf8")) as Receipt) : null;
 
   const planned: Array<() => void> = [];
 
@@ -80,7 +85,7 @@ export function install(opts: {
     stubs.push(stubPath);
     planned.push(() => {
       const prev = existsSync(stubPath) ? readFileSync(stubPath, "utf8") : null;
-      writeFile(stubPath, mergeStub(prev, cardPath));
+      writeFile(stubPath, mergeStub(prev, stubCardPath));
     });
   }
 
@@ -134,6 +139,24 @@ export function install(opts: {
         } else {
           writeFile(dest, renderClaudeAgent(alias, description, body));
         }
+      });
+    }
+  }
+
+  const writeSet = new Set(writes);
+  const stubSet = new Set(stubs);
+  if (prevRec) {
+    for (const p of prevRec.paths) {
+      if (p === prevRecFile || writeSet.has(p)) continue;
+      planned.push(() => {
+        if (existsSync(p)) rmSync(p, { recursive: true, force: true });
+      });
+    }
+    for (const stub of prevRec.stubs) {
+      if (stubSet.has(stub)) continue;
+      planned.push(() => {
+        if (!existsSync(stub)) return;
+        writeFileSync(stub, stripStub(readFileSync(stub, "utf8")));
       });
     }
   }
