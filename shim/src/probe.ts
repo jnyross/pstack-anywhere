@@ -14,6 +14,30 @@ function run(cmd: string, args: string[]): { status: number; out: string } {
   return { status: r.status ?? 1, out: `${r.stdout}\n${r.stderr}`.trim() };
 }
 
+export function claudeRow(path: string, authOut: string, printOut: string): MiniBin {
+  const loggedIn = /"loggedIn": true/.test(authOut);
+  const printDisabled = /disabled Claude subscription/i.test(printOut);
+  if (loggedIn && !printDisabled) {
+    return { kind: "found", name: "claude", path };
+  }
+  const detail = printDisabled
+    ? printOut.slice(0, 240)
+    : authOut.slice(0, 240) || "claude auth status failed";
+  return { kind: "unauth", name: "claude", path, detail };
+}
+
+export function droidRow(path: string, factoryKey: string | undefined): MiniBin {
+  if (!factoryKey) {
+    return {
+      kind: "unauth",
+      name: "droid",
+      path,
+      detail: "FACTORY_API_KEY is unset",
+    };
+  }
+  return { kind: "found", name: "droid", path };
+}
+
 export function probeMini(): MiniBin[] {
   const rows: MiniBin[] = [];
 
@@ -36,24 +60,17 @@ export function probeMini(): MiniBin[] {
 
   const droid = which("droid");
   if (!droid) rows.push({ kind: "missing", name: "droid" });
-  else rows.push({ kind: "found", name: "droid", path: droid });
+  else rows.push(droidRow(droid, process.env.FACTORY_API_KEY));
 
   const claude = which("claude");
   if (!claude) rows.push({ kind: "missing", name: "claude" });
   else {
     const auth = run(claude, ["auth", "status"]);
-    const loggedIn = /"loggedIn": true/.test(auth.out);
-    const disabled = /disabled Claude subscription/i.test(auth.out);
-    if (loggedIn && !disabled) {
-      rows.push({ kind: "found", name: "claude", path: claude });
-    } else {
-      rows.push({
-        kind: "unauth",
-        name: "claude",
-        path: claude,
-        detail: auth.out.slice(0, 240) || "claude auth status failed",
-      });
+    let printOut = "";
+    if (/"loggedIn": true/.test(auth.out)) {
+      printOut = run(claude, ["-p", "--max-turns", "0", "--model", "haiku", "ok"]).out;
     }
+    rows.push(claudeRow(claude, auth.out, printOut));
   }
 
   const cursorAgent = which("cursor-agent");
